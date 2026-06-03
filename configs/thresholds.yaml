@@ -1,0 +1,4 @@
+default_threshold: 0.50
+review_capacity_rate: 0.30
+high_risk_threshold: 0.65
+auto_clear_threshold: 0.35

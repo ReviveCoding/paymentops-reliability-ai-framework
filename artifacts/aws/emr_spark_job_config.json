@@ -1,0 +1,16 @@
+{
+  "status": "emr_spark_job_config_scaffold_only",
+  "entrypoint": "src/data/spark_feature_pipeline.py",
+  "spark_submit_args": [
+    "--master",
+    "yarn",
+    "--deploy-mode",
+    "cluster"
+  ],
+  "input_paths": [
+    "s3://<bucket>/paymentops/raw/cfpb/",
+    "s3://<bucket>/paymentops/raw/fraud/"
+  ],
+  "output_path": "s3://<bucket>/paymentops/processed/features/",
+  "claim_boundary": "EMR-compatible job configuration only. No EMR execution is claimed."
+}

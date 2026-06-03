@@ -1,0 +1,57 @@
+{
+  "drift_status": "PASS",
+  "monitoring_action": "continue_monitoring",
+  "reference_rows": 201,
+  "current_rows": 87,
+  "risk_score_psi": 0.9045858606335936,
+  "amount_psi": 0.7805385153327478,
+  "per_source": [
+    {
+      "source_dataset": "cfpb_style_public_sample",
+      "reference_rows": 67,
+      "current_rows": 29,
+      "risk_score_psi": 1.4390787115644998,
+      "amount_psi": 0.0
+    },
+    {
+      "source_dataset": "fraud_benchmark_style_sample",
+      "reference_rows": 84,
+      "current_rows": 36,
+      "risk_score_psi": 0.3756921485496645,
+      "amount_psi": 0.19100040881172764
+    },
+    {
+      "source_dataset": "synthetic_iso20022",
+      "reference_rows": 50,
+      "current_rows": 22,
+      "risk_score_psi": 1.0654895405438287,
+      "amount_psi": 2.7741289143966754
+    }
+  ],
+  "current_metrics": {
+    "roc_auc": 0.7695560253699788,
+    "pr_auc": 0.748074487806963,
+    "f1": 0.43636363636363634,
+    "f2": 0.326086956521663,
+    "precision": 1.0,
+    "recall": 0.27906976744186046,
+    "brier": 0.19899580666637928,
+    "ece": 0.10067396551724127,
+    "high_risk_capture": 0.5116279069767442,
+    "false_auto_clear_rate": 0.4883720930232558,
+    "review_burden": 0.39080459770114945
+  },
+  "champion": {
+    "name": "rule_prior_residual_runtime_score",
+    "window": "source_stratified_latest_30pct_time_split",
+    "pr_auc": 0.748074487806963,
+    "f2": 0.326086956521663,
+    "ece": 0.10067396551724127,
+    "weighted_risk_score_psi": 0.9045858606335936
+  },
+  "challenger": {
+    "name": "rule_prior_only",
+    "window": "source_stratified_latest_30pct_time_split",
+    "promotion_decision": "keep_champion"
+  }
+}

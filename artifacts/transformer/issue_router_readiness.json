@@ -1,0 +1,27 @@
+{
+  "status": "fine_tuning_ready_scaffold_only",
+  "base_model": "distilbert-base-uncased",
+  "task": "financial_operations_issue_routing",
+  "text_column": "consumer_complaint_narrative",
+  "label_column": "issue_group",
+  "num_labels": 4,
+  "label2id": {
+    "credit_card": 0,
+    "debt_collection": 1,
+    "mortgage": 2,
+    "payment_or_transfer": 3
+  },
+  "id2label": {
+    "0": "credit_card",
+    "1": "debt_collection",
+    "2": "mortgage",
+    "3": "payment_or_transfer"
+  },
+  "claim_boundary": "No Transformer fine-tuning run is claimed until a user executes the optional training path and saves run logs.",
+  "recommended_metrics": [
+    "macro_f1",
+    "weighted_f1",
+    "per_issue_f1",
+    "calibration_error"
+  ]
+}

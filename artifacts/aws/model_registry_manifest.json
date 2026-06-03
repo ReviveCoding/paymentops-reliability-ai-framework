@@ -1,0 +1,26 @@
+{
+  "status": "sagemaker_compatible_manifest_only",
+  "model_package_group_name": "paymentops-risk-routing",
+  "current_candidate": {
+    "model_name": "rule-prior-residual-risk-router",
+    "version": "0.1.0-local",
+    "approval_status": "PendingManualApproval",
+    "model_artifact_path": "s3://<bucket>/paymentops/models/rule_prior_residual/model.tar.gz",
+    "inference_image": "<account>.dkr.ecr.<region>.amazonaws.com/paymentops-risk-router:latest",
+    "supported_content_types": [
+      "application/json"
+    ],
+    "supported_response_types": [
+      "application/json"
+    ],
+    "metrics": [
+      "pr_auc",
+      "f2",
+      "brier",
+      "ece",
+      "false_auto_clear_rate"
+    ]
+  },
+  "claim_boundary": "Manifest is SageMaker-compatible scaffolding only. It is not evidence of an AWS run or deployment.",
+  "generated_at": "2026-06-03T20:04:41.558363+00:00"
+}

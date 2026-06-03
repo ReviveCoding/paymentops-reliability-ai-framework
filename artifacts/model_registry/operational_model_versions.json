@@ -1,0 +1,91 @@
+{
+  "created_at_utc": "2026-06-03T15:09:48.329607+00:00",
+  "claim_boundary": "External public-data operational backtest only. No proprietary bank data, production payment logs, or regulatory certification.",
+  "common_schema_input": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\validation_outputs\\external_common_case_schema.csv",
+  "external_output_dir": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\operational_backtest_outputs",
+  "champion_model": "hybrid_text_numeric_logreg",
+  "champion_model_path": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\operational_backtest_outputs\\models\\20260603_145728_champion_hybrid_text_numeric_logreg_train_val.joblib",
+  "candidate_model_paths": {
+    "vanilla_text_logreg": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\operational_backtest_outputs\\models\\20260603_145728_vanilla_text_logreg.joblib",
+    "hybrid_text_numeric_logreg": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\operational_backtest_outputs\\models\\20260603_145728_hybrid_text_numeric_logreg.joblib",
+    "numeric_hist_gradient_boosting": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\operational_backtest_outputs\\models\\20260603_145728_numeric_hist_gradient_boosting.joblib"
+  },
+  "candidate_validation_metrics": {
+    "vanilla_text_logreg": {
+      "rows": 78589,
+      "positives": 2630,
+      "positive_rate": 0.03346524322742368,
+      "review_capacity": 0.35,
+      "status": "PASS",
+      "roc_auc": 0.7687337530547923,
+      "pr_auc": 0.15829314006136047,
+      "f2": 0.30051150895140666,
+      "brier": 0.1597708675199316,
+      "high_risk_capture": 0.629657794676806,
+      "false_auto_clear": 0.3703422053231939,
+      "review_burden": 0.35,
+      "score_mean": 0.34957987497999204,
+      "score_p95": 0.744275219467159,
+      "fit_seconds": 16.97002610000345,
+      "composite_score": 0.26927998505545636
+    },
+    "hybrid_text_numeric_logreg": {
+      "rows": 78589,
+      "positives": 2630,
+      "positive_rate": 0.03346524322742368,
+      "review_capacity": 0.35,
+      "status": "PASS",
+      "roc_auc": 0.7878068251448638,
+      "pr_auc": 0.16553201761891126,
+      "f2": 0.1943382140081971,
+      "brier": 0.3284157114065601,
+      "high_risk_capture": 0.7714828897338403,
+      "false_auto_clear": 0.2285171102661597,
+      "review_burden": 0.35,
+      "score_mean": 0.5517259927150898,
+      "score_p95": 0.931079142340223,
+      "fit_seconds": 21.628669999998237,
+      "composite_score": 0.32055299059329295
+    },
+    "numeric_hist_gradient_boosting": {
+      "rows": 78589,
+      "positives": 2630,
+      "positive_rate": 0.03346524322742368,
+      "review_capacity": 0.35,
+      "status": "PASS",
+      "roc_auc": 0.5355542866656552,
+      "pr_auc": 0.037827706659591676,
+      "f2": 0.0,
+      "brier": 0.03294263746037891,
+      "high_risk_capture": 0.38631178707224334,
+      "false_auto_clear": 0.6136882129277567,
+      "review_burden": 0.35,
+      "score_mean": 0.02558576986227525,
+      "score_p95": 0.09222382316165212,
+      "fit_seconds": 3.384553700001561,
+      "composite_score": 0.10310132712094086
+    }
+  },
+  "final_test_metrics": {
+    "rows": 130982,
+    "positives": 3056,
+    "positive_rate": 0.023331450122917652,
+    "review_capacity": 0.35,
+    "status": "PASS",
+    "roc_auc": 0.8921334787953736,
+    "pr_auc": 0.2160014166243938,
+    "f2": 0.32039619971700023,
+    "brier": 0.14685960086921943,
+    "high_risk_capture": 0.9172120418848168,
+    "false_auto_clear": 0.08278795811518325,
+    "review_burden": 0.35,
+    "score_mean": 0.2736481989707391,
+    "score_p95": 0.9368101219535391
+  },
+  "latency": {
+    "batch_rows": 1000,
+    "p50_ms": 131.75399999454385,
+    "p95_ms": 136.68261999991955,
+    "mean_ms": 132.3482799998601
+  }
+}

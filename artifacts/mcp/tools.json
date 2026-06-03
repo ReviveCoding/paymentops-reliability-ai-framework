@@ -1,0 +1,47 @@
+[
+  {
+    "name": "get_case_profile",
+    "description": "Return normalized case fields from common case schema.",
+    "input_schema": {
+      "case_id": "string"
+    }
+  },
+  {
+    "name": "score_payment_risk",
+    "description": "Return rule-prior, model, and residual-corrected risk scores.",
+    "input_schema": {
+      "case_id": "string"
+    }
+  },
+  {
+    "name": "retrieve_policy_evidence",
+    "description": "Retrieve policy evidence for payment investigation.",
+    "input_schema": {
+      "query": "string",
+      "top_k": "integer"
+    }
+  },
+  {
+    "name": "check_source_conflict",
+    "description": "Detect conflicting evidence documents.",
+    "input_schema": {
+      "doc_ids": "array"
+    }
+  },
+  {
+    "name": "create_human_review_ticket",
+    "description": "Create a review ticket when risk, weak evidence, or permission gate requires review.",
+    "input_schema": {
+      "case_id": "string",
+      "reason": "string"
+    }
+  },
+  {
+    "name": "write_audit_log",
+    "description": "Write auditable decision trace.",
+    "input_schema": {
+      "case_id": "string",
+      "decision": "string"
+    }
+  }
+]

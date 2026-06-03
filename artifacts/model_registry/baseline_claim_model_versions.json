@@ -1,0 +1,8 @@
+{
+  "created_at_utc": "2026-06-03T16:27:03.005046+00:00",
+  "claim_boundary": "External public-data final-test comparison only. No proprietary bank data, production payment logs, or regulatory certification.",
+  "external_output_dir": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\baseline_claim_outputs",
+  "models_dir": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\baseline_claim_outputs\\models",
+  "comparison_csv": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\baseline_claim_outputs\\final_test_baseline_vs_method_comparison.csv",
+  "frontier_csv": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\baseline_claim_outputs\\review_capacity_lift_frontier.csv"
+}

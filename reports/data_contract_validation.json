@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "num_expectations": 13,
+  "num_failed": 0,
+  "results": [
+    {
+      "expectation": "all_required_columns_present",
+      "passed": true,
+      "observed": [],
+      "details": "Common case schema must contain all required columns."
+    },
+    {
+      "expectation": "case_id_non_null",
+      "passed": true,
+      "observed": 0,
+      "details": "No case_id should be null."
+    },
+    {
+      "expectation": "case_id_unique",
+      "passed": true,
+      "observed": 0,
+      "details": "case_id should uniquely identify a case."
+    },
+    {
+      "expectation": "event_time_parseable",
+      "passed": true,
+      "observed": 0,
+      "details": "All event_time values should parse as datetimes."
+    },
+    {
+      "expectation": "case_type_allowed",
+      "passed": true,
+      "observed": [
+        "customer_complaint",
+        "fraud_transaction",
+        "iso20022_payment_case"
+      ],
+      "details": "case_type must stay inside the documented ontology."
+    },
+    {
+      "expectation": "amount_non_negative",
+      "passed": true,
+      "observed": 0.0,
+      "details": "amount should be non-negative."
+    },
+    {
+      "expectation": "text_non_empty",
+      "passed": true,
+      "observed": 0,
+      "details": "All cases should have text/narrative for routing and RAG."
+    },
+    {
+      "expectation": "risk_label_binary",
+      "passed": true,
+      "observed": [
+        0,
+        1
+      ],
+      "details": "risk_label must be binary for this benchmark."
+    },
+    {
+      "expectation": "route_label_allowed",
+      "passed": true,
+      "observed": [
+        "analyst_review",
+        "auto_resolve",
+        "compliance_review"
+      ],
+      "details": "route_label must be an allowed route."
+    },
+    {
+      "expectation": "source_dataset_non_null",
+      "passed": true,
+      "observed": 0,
+      "details": "source_dataset should not be null."
+    },
+    {
+      "expectation": "payment_status_non_null",
+      "passed": true,
+      "observed": 0,
+      "details": "payment_status should not be null."
+    },
+    {
+      "expectation": "exception_type_non_null",
+      "passed": true,
+      "observed": 0,
+      "details": "exception_type should not be null."
+    },
+    {
+      "expectation": "issue_group_non_null",
+      "passed": true,
+      "observed": 0,
+      "details": "issue_group should not be null."
+    }
+  ]
+}

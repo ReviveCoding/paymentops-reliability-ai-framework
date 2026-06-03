@@ -1,0 +1,9 @@
+[project]
+name = "paymentops-reliability-ai-framework"
+version = "0.1.0"
+description = "Local/GitHub-runnable PaymentOps reliability AI framework"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

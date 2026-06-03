@@ -1,0 +1,49 @@
+{
+  "external_root": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data",
+  "output_csv": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\validation_outputs\\external_common_case_schema.csv",
+  "detected": {
+    "cfpb_path": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\cfpb\\complaints.csv",
+    "cfpb_exists": true,
+    "cfpb_rows_loaded": 50000,
+    "ibm_transaction_path": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data\\ibm_aml\\HI-Small_Trans.csv",
+    "ibm_exists": true,
+    "ibm_rows_loaded": 50000
+  },
+  "total_rows": 100000,
+  "source_counts": {
+    "cfpb_full_public_adapter": 50000,
+    "ibm_aml_external_public_synthetic": 50000
+  },
+  "label_counts": {
+    "0": 97976,
+    "1": 2024
+  },
+  "null_counts": {
+    "case_id": 0,
+    "source_dataset": 0,
+    "event_time": 0,
+    "case_type": 0,
+    "text": 0,
+    "risk_label": 0,
+    "route_label": 0
+  },
+  "text_risk_eval": {
+    "status": "PASS",
+    "rows": 100000,
+    "train_rows": 70000,
+    "test_rows": 30000,
+    "class_counts": {
+      "0": 97976,
+      "1": 2024
+    },
+    "roc_auc": 0.8167752063707915,
+    "pr_auc": 0.16876524689136715,
+    "f2": 0.3253652058432935,
+    "brier": 0.11958904558755418,
+    "review_capacity": 0.35,
+    "high_risk_capture": 0.7446457990115322,
+    "false_auto_clear": 0.2553542009884679,
+    "review_burden": 0.35
+  },
+  "claim_boundary": "External public-data validation only. No proprietary bank data, no production payment logs, no regulatory certification."
+}

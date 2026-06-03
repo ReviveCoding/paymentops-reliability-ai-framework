@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "missing_required_features": [],
+  "duplicate_case_ids": 0,
+  "event_time_parse_rate": 1.0,
+  "row_count": 288,
+  "partition_count_by_event_date": 96,
+  "source_counts": {
+    "fraud_benchmark_style_sample": 120,
+    "cfpb_style_public_sample": 96,
+    "synthetic_iso20022": 72
+  },
+  "manifest_status": "feature_store_style_manifest_only",
+  "claim_boundary": "Local feature-store-style validation only; no online/offline managed feature store is claimed."
+}

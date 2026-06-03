@@ -1,0 +1,212 @@
+[
+  {
+    "case_id": "ISO-0000",
+    "risk_score": 0.08,
+    "final_action": "human_review_required",
+    "summary": "Case ISO-0000 has payment status ACCP and exception type none. Based on evidence documents POL-001, POL-002, POL-004, the recommended route is human_review_required. If required evidence slots are missing or source conflict is detected, human review is required.",
+    "trace": [
+      {
+        "node": "prompt_injection_check",
+        "is_suspicious": false,
+        "matched_patterns": [],
+        "recommended_action": "continue"
+      },
+      {
+        "node": "score_case",
+        "risk_score": 0.08
+      },
+      {
+        "node": "retrieve_expand_deflate",
+        "doc_ids": [
+          "POL-001",
+          "POL-002",
+          "POL-004"
+        ],
+        "slots": [
+          "customer_impact",
+          "payment_status",
+          "policy_rule",
+          "required_action",
+          "risk_reason"
+        ]
+      },
+      {
+        "node": "permission_and_route",
+        "proposed": "auto_resolve",
+        "final": "human_review_required",
+        "permission": {
+          "allowed": true,
+          "reason": "Permission gate passed."
+        }
+      }
+    ]
+  },
+  {
+    "case_id": "ISO-0001",
+    "risk_score": 0.08,
+    "final_action": "human_review_required",
+    "summary": "Case ISO-0001 has payment status ACSP and exception type none. Based on evidence documents POL-001, POL-002, POL-004, the recommended route is human_review_required. If required evidence slots are missing or source conflict is detected, human review is required.",
+    "trace": [
+      {
+        "node": "prompt_injection_check",
+        "is_suspicious": false,
+        "matched_patterns": [],
+        "recommended_action": "continue"
+      },
+      {
+        "node": "score_case",
+        "risk_score": 0.08
+      },
+      {
+        "node": "retrieve_expand_deflate",
+        "doc_ids": [
+          "POL-001",
+          "POL-002",
+          "POL-004"
+        ],
+        "slots": [
+          "customer_impact",
+          "payment_status",
+          "policy_rule",
+          "required_action",
+          "risk_reason"
+        ]
+      },
+      {
+        "node": "permission_and_route",
+        "proposed": "auto_resolve",
+        "final": "human_review_required",
+        "permission": {
+          "allowed": true,
+          "reason": "Permission gate passed."
+        }
+      }
+    ]
+  },
+  {
+    "case_id": "ISO-0002",
+    "risk_score": 0.36000000000000004,
+    "final_action": "human_review_required",
+    "summary": "Case ISO-0002 has payment status ACSP and exception type amount_limit. Based on evidence documents POL-001, POL-002, POL-004, the recommended route is human_review_required. If required evidence slots are missing or source conflict is detected, human review is required.",
+    "trace": [
+      {
+        "node": "prompt_injection_check",
+        "is_suspicious": false,
+        "matched_patterns": [],
+        "recommended_action": "continue"
+      },
+      {
+        "node": "score_case",
+        "risk_score": 0.36000000000000004
+      },
+      {
+        "node": "retrieve_expand_deflate",
+        "doc_ids": [
+          "POL-001",
+          "POL-002",
+          "POL-004"
+        ],
+        "slots": [
+          "customer_impact",
+          "payment_status",
+          "policy_rule",
+          "required_action",
+          "risk_reason"
+        ]
+      },
+      {
+        "node": "permission_and_route",
+        "proposed": "analyst_review",
+        "final": "human_review_required",
+        "permission": {
+          "allowed": true,
+          "reason": "Permission gate passed."
+        }
+      }
+    ]
+  },
+  {
+    "case_id": "ISO-0003",
+    "risk_score": 0.36000000000000004,
+    "final_action": "human_review_required",
+    "summary": "Case ISO-0003 has payment status ACCP and exception type status_mismatch. Based on evidence documents POL-001, POL-002, POL-004, the recommended route is human_review_required. If required evidence slots are missing or source conflict is detected, human review is required.",
+    "trace": [
+      {
+        "node": "prompt_injection_check",
+        "is_suspicious": false,
+        "matched_patterns": [],
+        "recommended_action": "continue"
+      },
+      {
+        "node": "score_case",
+        "risk_score": 0.36000000000000004
+      },
+      {
+        "node": "retrieve_expand_deflate",
+        "doc_ids": [
+          "POL-001",
+          "POL-002",
+          "POL-004"
+        ],
+        "slots": [
+          "customer_impact",
+          "payment_status",
+          "policy_rule",
+          "required_action",
+          "risk_reason"
+        ]
+      },
+      {
+        "node": "permission_and_route",
+        "proposed": "analyst_review",
+        "final": "human_review_required",
+        "permission": {
+          "allowed": true,
+          "reason": "Permission gate passed."
+        }
+      }
+    ]
+  },
+  {
+    "case_id": "ISO-0004",
+    "risk_score": 0.08,
+    "final_action": "human_review_required",
+    "summary": "Case ISO-0004 has payment status ACCP and exception type missing_beneficiary. Based on evidence documents POL-001, POL-002, POL-004, the recommended route is human_review_required. If required evidence slots are missing or source conflict is detected, human review is required.",
+    "trace": [
+      {
+        "node": "prompt_injection_check",
+        "is_suspicious": false,
+        "matched_patterns": [],
+        "recommended_action": "continue"
+      },
+      {
+        "node": "score_case",
+        "risk_score": 0.08
+      },
+      {
+        "node": "retrieve_expand_deflate",
+        "doc_ids": [
+          "POL-001",
+          "POL-002",
+          "POL-004"
+        ],
+        "slots": [
+          "customer_impact",
+          "payment_status",
+          "policy_rule",
+          "required_action",
+          "risk_reason"
+        ]
+      },
+      {
+        "node": "permission_and_route",
+        "proposed": "auto_resolve",
+        "final": "human_review_required",
+        "permission": {
+          "allowed": true,
+          "reason": "Permission gate passed."
+        }
+      }
+    ]
+  }
+]

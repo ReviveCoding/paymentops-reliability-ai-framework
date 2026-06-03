@@ -1,0 +1,14 @@
+[
+  {
+    "name": "payment_investigation_summary",
+    "description": "Grounded summary template for payment investigation."
+  },
+  {
+    "name": "compliance_review_note",
+    "description": "Human-review note template for compliance review."
+  },
+  {
+    "name": "evidence_sufficiency_check",
+    "description": "Template for checking missing evidence slots."
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "baseline_evidence_slot_recall": 0.4000000000000001,
+  "baseline_evidence_slot_precision": 1.0,
+  "baseline_evidence_slot_f1": 0.5714285714285714,
+  "enhanced_evidence_slot_recall": 1.0,
+  "enhanced_evidence_slot_precision": 1.0,
+  "enhanced_evidence_slot_f1": 1.0,
+  "citation_support_rate": 1.0,
+  "unsupported_claim_rate": 0.0
+}

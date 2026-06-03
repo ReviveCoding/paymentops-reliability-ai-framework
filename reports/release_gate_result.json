@@ -1,0 +1,25 @@
+{
+  "release_status": "PASS",
+  "checks": {
+    "pr_auc": true,
+    "f2": true,
+    "false_auto_clear": true,
+    "review_burden": true,
+    "ece": true,
+    "evidence_slot_f1": true,
+    "unsupported_claim_rate": true,
+    "unsafe_action_block_rate": true,
+    "p95_latency": true,
+    "operating_policy_frontier": true,
+    "feature_store_contract": true,
+    "pii_redaction": true,
+    "prompt_injection": true,
+    "data_contract_validation": true,
+    "drift_backtest": true,
+    "observability_export": true,
+    "red_team_safety": true,
+    "repository_audit": true,
+    "api_contract_validation": true
+  },
+  "failed_checks": []
+}

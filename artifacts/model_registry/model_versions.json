@@ -1,0 +1,24 @@
+{
+  "registry_name": "paymentops-local-model-registry",
+  "versions": [
+    {
+      "name": "vanilla_risk_model",
+      "version": "0.1.0",
+      "stage": "baseline",
+      "approval": "ReferenceOnly"
+    },
+    {
+      "name": "rule_prior_residual_risk_router",
+      "version": "0.1.0",
+      "stage": "candidate",
+      "approval": "PendingManualReview"
+    },
+    {
+      "name": "transformer_issue_router",
+      "version": "0.0.0-scaffold",
+      "stage": "fine_tuning_ready",
+      "approval": "NotTrained"
+    }
+  ],
+  "claim_boundary": "Local manifest only. This is not a hosted MLflow or SageMaker registry unless later deployed and logged."
+}

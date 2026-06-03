@@ -1,0 +1,42 @@
+[
+  {
+    "scenario": "S0 Manual review only",
+    "high_risk_capture": 1.0,
+    "false_auto_clear_rate": 0.0,
+    "review_burden": 1.0,
+    "unsupported_action_rate": 0.0,
+    "p95_latency_ms": 200
+  },
+  {
+    "scenario": "S1 Vanilla ML",
+    "high_risk_capture": 0.5306122448979592,
+    "false_auto_clear_rate": 0.46938775510204084,
+    "review_burden": 0.297029702970297,
+    "unsupported_action_rate": 0.08,
+    "p95_latency_ms": 450
+  },
+  {
+    "scenario": "S2 Residual correction + CHT",
+    "high_risk_capture": 0.6122448979591837,
+    "false_auto_clear_rate": 0.3877551020408163,
+    "review_burden": 0.44554455445544555,
+    "unsupported_action_rate": 0.05,
+    "p95_latency_ms": 650
+  },
+  {
+    "scenario": "S3 RAG evidence gate",
+    "high_risk_capture": 0.6122448979591837,
+    "false_auto_clear_rate": 0.3877551020408163,
+    "review_burden": 0.45,
+    "unsupported_action_rate": 0.0,
+    "p95_latency_ms": 900
+  },
+  {
+    "scenario": "S4 Agent + release gate",
+    "high_risk_capture": 0.6122448979591837,
+    "false_auto_clear_rate": 0.3877551020408163,
+    "review_burden": 0.45,
+    "unsupported_action_rate": 0.0,
+    "p95_latency_ms": 1100
+  }
+]

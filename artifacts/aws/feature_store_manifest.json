@@ -1,0 +1,38 @@
+{
+  "status": "feature_store_style_manifest_only",
+  "offline_store_prefix": "s3://<bucket>/paymentops/offline_features/",
+  "online_feature_group": "paymentops-risk-routing-online",
+  "entity_key": "case_id",
+  "event_time_key": "event_time",
+  "feature_groups": [
+    {
+      "name": "case_context_features",
+      "features": [
+        "case_type",
+        "issue_group",
+        "payment_status",
+        "exception_type"
+      ]
+    },
+    {
+      "name": "risk_features",
+      "features": [
+        "amount",
+        "case_health_timestep",
+        "rule_prior_score",
+        "residual_score"
+      ]
+    },
+    {
+      "name": "evidence_features",
+      "features": [
+        "evidence_slot_recall",
+        "evidence_slot_precision",
+        "source_conflict_flag"
+      ]
+    }
+  ],
+  "backfill_plan": "Run src.data.adapters over local public exports, then materialize feature_table partitions by event_date.",
+  "claim_boundary": "Schema-governance scaffold only unless actual offline/online feature store resources are created.",
+  "generated_at": "2026-06-03T20:04:41.558363+00:00"
+}

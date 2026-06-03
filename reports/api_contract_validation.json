@@ -1,0 +1,12 @@
+{
+  "api_contract_status": "PASS",
+  "checks": {
+    "GET /health": true,
+    "POST /investigate": true,
+    "request_schema_validation": true,
+    "response_schema_validation": true,
+    "openapi_has_components": true
+  },
+  "openapi_title": "PaymentOps Reliability AI Framework",
+  "openapi_version": "0.1.0"
+}

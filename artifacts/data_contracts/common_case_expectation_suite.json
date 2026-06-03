@@ -1,0 +1,28 @@
+{
+  "suite_name": "common_case_schema_expectations",
+  "expectations": {
+    "case_id": "non_null_unique_string",
+    "source_dataset": "non_null_string",
+    "event_time": "parseable_datetime",
+    "case_type": "allowed_domain",
+    "amount": "non_negative_numeric",
+    "text": "non_empty_string",
+    "risk_label": "binary_0_1",
+    "route_label": "allowed_domain",
+    "payment_status": "non_null_string",
+    "exception_type": "non_null_string",
+    "issue_group": "non_null_string"
+  },
+  "allowed_case_types": [
+    "customer_complaint",
+    "fraud_transaction",
+    "iso20022_payment_case"
+  ],
+  "allowed_routes": [
+    "analyst_review",
+    "auto_resolve",
+    "compliance_escalation",
+    "compliance_review",
+    "human_review_required"
+  ]
+}

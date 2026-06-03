@@ -1,0 +1,21 @@
+{
+  "status": "sagemaker_pipeline_definition_scaffold_only",
+  "steps": [
+    "DataQualityAndSchemaValidation",
+    "FeatureMaterialization",
+    "VanillaBaselineTraining",
+    "ResidualRiskModelTraining",
+    "CalibrationAndThresholdSelection",
+    "ModelEvaluation",
+    "RegisterModelPendingApproval"
+  ],
+  "inputs": {
+    "train": "s3://<bucket>/paymentops/splits/train/",
+    "calibration": "s3://<bucket>/paymentops/splits/calibration/",
+    "test": "s3://<bucket>/paymentops/splits/test/"
+  },
+  "outputs": {
+    "metrics": "s3://<bucket>/paymentops/reports/metrics.json",
+    "model_registry": "paymentops-risk-routing"
+  }
+}

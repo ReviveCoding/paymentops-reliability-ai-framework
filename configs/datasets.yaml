@@ -1,0 +1,4 @@
+cfpb_sample_rows: 96
+fraud_sample_rows: 120
+iso20022_sample_rows: 72
+random_seed: 42

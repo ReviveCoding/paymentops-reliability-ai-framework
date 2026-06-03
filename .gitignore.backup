@@ -1,0 +1,22 @@
+
+# Local external datasets, do not commit
+data/external/
+runs/
+*.7z
+*.zip
+*.gz
+*.parquet
+*.duckdb
+*.sqlite
+*.db
+
+# Local external datasets, do not commit
+data/external/
+runs/
+*.7z
+*.zip
+*.gz
+*.parquet
+*.duckdb
+*.sqlite
+*.db

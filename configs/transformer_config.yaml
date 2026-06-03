@@ -1,0 +1,15 @@
+transformer_issue_router:
+  status: fine_tuning_ready_scaffold_only
+  base_model: distilbert-base-uncased
+  text_column: consumer_complaint_narrative
+  label_column: issue_group
+  max_length: 256
+  train_batch_size: 16
+  eval_batch_size: 32
+  epochs: 3
+  metrics:
+    - macro_f1
+    - weighted_f1
+    - per_issue_f1
+    - calibration_error
+  claim_boundary: "Do not claim actual fine-tuning unless optional training is executed and logged."

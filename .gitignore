@@ -1,0 +1,56 @@
+﻿# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local env and secrets
+.env
+.env.*
+*.pem
+*.key
+secrets.*
+.streamlit/secrets.toml
+
+# Local notebooks and editor files
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and large artifacts
+data/external/
+data/raw/
+data/processed/
+*.csv
+*.csv.gz
+*.tsv
+*.parquet
+*.7z
+*.zip
+*.tar
+*.tar.gz
+*.joblib
+*.pkl
+*.pickle
+*.onnx
+*.pt
+*.pth
+
+# External benchmark outputs
+paymentops_external_data/
+score_alignment_blend_outputs/
+model_improvement_outputs/
+operational_backtest_outputs/
+source_specific_aml_behavior_outputs/
+
+# Local run caches
+runs/
+tmp/
+temp/
+cache/
