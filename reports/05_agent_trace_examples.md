@@ -2,7 +2,7 @@
 
 ## Agent mode
 
-- LangGraph dependency available: `False`
+- LangGraph dependency available: `True`
 - Fallback deterministic graph used when LangGraph is unavailable.
 
 ## Sample traces

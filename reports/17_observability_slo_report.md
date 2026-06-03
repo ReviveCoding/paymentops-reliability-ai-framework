@@ -9,8 +9,8 @@ This report adds an OpenTelemetry-style observability layer without requiring an
 | Metric | Value |
 |---|---:|
 | Traces exported | 12 |
-| p50 latency, ms | 4.110 |
-| p95 latency, ms | 4.840 |
+| p50 latency, ms | 3.314 |
+| p95 latency, ms | 3.492 |
 | Trace/log correlation rate | 1.000 |
 | SLO status | PASS |
 

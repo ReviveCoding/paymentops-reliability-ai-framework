@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "input_csv": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\pyspark_etl_outputs\\sample_paymentops_cases.csv",
+  "generated_sample": true,
+  "rows": 2000,
+  "positives": 74,
+  "positive_rate": 0.037,
+  "sources": [
+    "ibm_aml_style",
+    "cfpb_complaint"
+  ],
+  "amount_p95": 3408.2,
+  "parquet_status": "PARQUET",
+  "feature_store_parquet": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\pyspark_etl_outputs\\feature_store_parquet\\part-00000.parquet",
+  "slice_metrics_parquet": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\pyspark_etl_outputs\\slice_metrics_parquet\\part-00000.parquet",
+  "sample_csv": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\pyspark_etl_outputs\\feature_store_sample_csv\\part-00000.csv",
+  "claim_boundary": "Local PySpark ETL artifact using public/proxy or generated sample data. No production payment logs or proprietary bank data."
+}

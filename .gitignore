@@ -54,3 +54,7 @@ runs/
 tmp/
 temp/
 cache/
+
+# Local PySpark smoke run logs
+reports/pyspark_stdout.txt
+reports/pyspark_stderr.txt

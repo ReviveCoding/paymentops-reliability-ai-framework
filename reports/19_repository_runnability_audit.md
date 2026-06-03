@@ -9,10 +9,10 @@ This audit checks whether the repository remains lightweight, local/GitHub runna
 | Field | Value |
 |---|---|
 | audit_status | `PASS` |
-| num_files | `246` |
-| num_python_files | `97` |
-| num_report_files | `58` |
-| total_size_mb | `1.670758` |
+| num_files | `260` |
+| num_python_files | `101` |
+| num_report_files | `67` |
+| total_size_mb | `1.734121` |
 
 ## Large files
 

@@ -1,7 +1,7 @@
 {
   "num_traces": 12,
-  "p50_latency_ms": 4.110149995540269,
-  "p95_latency_ms": 4.840399997192435,
+  "p50_latency_ms": 3.3136499987449497,
+  "p95_latency_ms": 3.492000003461726,
   "trace_log_correlation_rate": 1.0,
   "metrics_logs_traces_exported": true,
   "slo_status": "PASS"

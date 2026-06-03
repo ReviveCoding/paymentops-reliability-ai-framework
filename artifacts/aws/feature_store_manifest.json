@@ -34,5 +34,5 @@
   ],
   "backfill_plan": "Run src.data.adapters over local public exports, then materialize feature_table partitions by event_date.",
   "claim_boundary": "Schema-governance scaffold only unless actual offline/online feature store resources are created.",
-  "generated_at": "2026-06-03T20:04:41.558363+00:00"
+  "generated_at": "2026-06-03T22:52:22.825362+00:00"
 }

@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "live_s3_requested": false,
+  "bucket": null,
+  "prefix": "paymentops-reliability-ai-framework",
+  "region": "us-east-1",
+  "model_tar": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\aws_sagemaker_style_artifacts\\model.tar.gz",
+  "sagemaker_request_json": "C:\\Users\\bjw-0\\Downloads\\paymentops_external_data_pyspark_smoke\\aws_sagemaker_style_artifacts\\sagemaker_create_training_job_request.json",
+  "s3_model_uri": "s3://<bucket>/paymentops-reliability-ai-framework/model/model.tar.gz",
+  "s3_request_uri": "s3://<bucket>/paymentops-reliability-ai-framework/sagemaker/sagemaker_create_training_job_request.json",
+  "s3_output_uri": "s3://<bucket>/paymentops-reliability-ai-framework/sagemaker-output/",
+  "uploaded": [],
+  "claim_boundary": "S3/SageMaker-style architecture artifact. Only S3 upload is live if --live-s3 is used with valid AWS credentials and bucket."
+}

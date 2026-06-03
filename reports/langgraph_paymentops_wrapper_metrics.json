@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "cases": 5,
+  "human_review_count": 1,
+  "auto_clear_candidate_count": 4,
+  "jsonl_output": "reports\\langgraph_paymentops_outputs\\langgraph_decisions.jsonl",
+  "claim_boundary": "Local LangGraph wrapper for PaymentOps review routing. No production payment decisions."
+}
