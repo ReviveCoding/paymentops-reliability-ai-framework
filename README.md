@@ -1,6 +1,6 @@
 ﻿# PaymentOps Reliability AI Framework
 
-A GitHub-clean, local-runnable financial AI reliability framework for PaymentOps-style risk routing, AML transaction behavior modeling, source-wise score calibration, review-capacity evaluation, retraining simulation, and governance-ready model validation.
+A local-runnable financial AI reliability framework for PaymentOps-style risk routing, AML transaction behavior modeling, source-wise score calibration, review-capacity evaluation, retraining simulation, and governance-ready model validation.
 
 This project uses external public/proxy CFPB and IBM AML-style datasets only. It does not use proprietary bank data, production payment logs, real customer account data, JPMC data, or regulatory certification artifacts.
 
@@ -78,7 +78,7 @@ Run:
     python -m pip install --upgrade pip
     pip install -r requirements.txt
 
-## GitHub-Clean Sample Run
+## Local Sample Run
 
 Run:
 
@@ -104,12 +104,6 @@ Primary reports:
 - reports/28_score_alignment_blend_experiment.md
 - reports/score_alignment_blend_metrics.json
 - reports/28_score_alignment_blend_resume_claims.md
-
-## Resume-Safe Summary
-
-Built a GitHub-clean PaymentOps reliability AI framework using external public/proxy CFPB and IBM AML datasets, with temporal validation, source-wise score calibration, review-capacity evaluation, operational backtesting, retraining simulation, and governance-ready reports.
-
-Improved a combined text risk-routing baseline with source-wise isotonic score calibration and aligned routing on 523,927 rows, increasing PR-AUC by 15.0%, reducing Brier score by 76.9%, and lowering false auto-clear by 25.0% on a 130,982-row future test split.
 
 ## Author
 
