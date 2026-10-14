@@ -33,13 +33,17 @@ def expected_calibration_error(y_true, y_prob, n_bins: int = 10) -> float:
 
 def binary_metrics(y_true, y_prob, threshold: float = 0.5) -> dict:
     y_pred = (np.asarray(y_prob) >= threshold).astype(int)
+    precision = float(precision_score(y_true, y_pred, zero_division=0))
+    recall = float(recall_score(y_true, y_pred, zero_division=0))
+    f2 = (5.0 * precision * recall) / (4.0 * precision + recall + 1e-12)
+
     return {
         "roc_auc": safe_auc(y_true, y_prob, "roc"),
         "pr_auc": safe_auc(y_true, y_prob, "pr"),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-        "f2": float((5 * precision_score(y_true, y_pred, zero_division=0) * recall_score(y_true, y_pred, zero_division=0)) / (4 * precision_score(y_true, y_pred, zero_division=0) + recall_score(y_true, y_pred, zero_division=0) + 1e-12)),
-        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f2": float(f2),
+        "precision": precision,
+        "recall": recall,
         "brier": float(brier_score_loss(y_true, y_prob)),
         "ece": expected_calibration_error(y_true, y_prob),
     }
