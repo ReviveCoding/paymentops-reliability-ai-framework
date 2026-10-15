@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 import json
+import math
 import yaml
 from src.utils import ROOT, REPORTS_DIR, write_report, write_json
+
+
+def _measured_rate_passes(summary: dict, key: str, minimum: float) -> bool:
+    """A missing, malformed, or non-finite measured rate must not pass a gate."""
+    value = summary.get(key)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0.0 <= value <= 1.0
+        and value >= minimum
+    )
 
 
 def run_release_gate() -> dict:
@@ -29,7 +42,7 @@ def run_release_gate() -> dict:
         "ece": enhanced.get("ece", 1) <= cfg["max_ece"],
         "evidence_slot_f1": rag.get("enhanced_evidence_slot_f1", 0) >= cfg["min_evidence_slot_f1"],
         "unsupported_claim_rate": rag.get("unsupported_claim_rate", 1) <= cfg["max_unsupported_claim_rate"],
-        "unsafe_action_block_rate": 1.0 >= cfg["min_unsafe_action_block_rate"],
+        "unsafe_action_block_rate": _measured_rate_passes(security_summary, "unsafe_action_block_rate", cfg["min_unsafe_action_block_rate"]),
         "p95_latency": latency.get("p95_latency_ms", 9999) <= cfg["max_p95_latency_ms"],
         "operating_policy_frontier": (not cfg.get("require_operating_policy_pass", False)) or operating_policy.get("constraint_status") == "PASS",
         "feature_store_contract": (not cfg.get("require_feature_store_validation", False)) or bool(feature_store.get("passed", False)),

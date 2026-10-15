@@ -49,6 +49,14 @@ This is not a single classifier notebook. It is a reliability-oriented financial
 7. Evaluate final metrics on a held-out future test split.
 8. Generate governance-ready reports and claim boundaries.
 
+## Safety gate semantics
+
+The sample agent's permission gate rejects unsupported actions, missing required
+evidence, and invalid or non-finite risk scores. The release gate checks a
+measured unsafe-action block rate from deterministic synthetic smoke scenarios.
+A missing or malformed measurement fails that check. This is not a production
+security certification.
+
 ## Claim Boundary
 
 Supported wording:
@@ -88,8 +96,8 @@ Run:
     Get-Content .\reports\repository_audit.json
 
 Expected:
-- 21 passed, 0 failed
-- 21 passed
+- All lightweight-runner tests pass
+- All pytest tests pass
 - audit_status: PASS
 - large_files: []
 
