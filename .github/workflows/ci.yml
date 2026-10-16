@@ -25,6 +25,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify dependency consistency
+        run: python -m pip check
+      - name: Byte-compile project sources
+        run: python -m compileall -q src tests
       - name: Run sample pipeline
         run: python -m src.scripts.run_all
 
