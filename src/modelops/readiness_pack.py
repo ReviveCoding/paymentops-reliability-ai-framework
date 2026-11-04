@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from src.utils import ARTIFACTS_DIR, REPORTS_DIR, write_json, write_report
+
 from src.models.transformer_issue_router import write_transformer_readiness_report
+from src.utils import ARTIFACTS_DIR, REPORTS_DIR, write_json, write_report
 
 
 def write_aws_readiness_pack() -> dict:
@@ -31,9 +32,32 @@ def write_aws_readiness_pack() -> dict:
         "entity_key": "case_id",
         "event_time_key": "event_time",
         "feature_groups": [
-            {"name": "case_context_features", "features": ["case_type", "issue_group", "payment_status", "exception_type"]},
-            {"name": "risk_features", "features": ["amount", "case_health_timestep", "rule_prior_score", "residual_score"]},
-            {"name": "evidence_features", "features": ["evidence_slot_recall", "evidence_slot_precision", "source_conflict_flag"]},
+            {
+                "name": "case_context_features",
+                "features": [
+                    "case_type",
+                    "issue_group",
+                    "payment_status",
+                    "exception_type",
+                ],
+            },
+            {
+                "name": "risk_features",
+                "features": [
+                    "amount",
+                    "case_health_timestep",
+                    "rule_prior_score",
+                    "residual_score",
+                ],
+            },
+            {
+                "name": "evidence_features",
+                "features": [
+                    "evidence_slot_recall",
+                    "evidence_slot_precision",
+                    "source_conflict_flag",
+                ],
+            },
         ],
         "backfill_plan": "Run src.data.adapters over local public exports, then materialize feature_table partitions by event_date.",
         "claim_boundary": "Schema-governance scaffold only unless actual offline/online feature store resources are created.",
@@ -50,14 +74,24 @@ def write_aws_readiness_pack() -> dict:
             "ModelEvaluation",
             "RegisterModelPendingApproval",
         ],
-        "inputs": {"train": "s3://<bucket>/paymentops/splits/train/", "calibration": "s3://<bucket>/paymentops/splits/calibration/", "test": "s3://<bucket>/paymentops/splits/test/"},
-        "outputs": {"metrics": "s3://<bucket>/paymentops/reports/metrics.json", "model_registry": "paymentops-risk-routing"},
+        "inputs": {
+            "train": "s3://<bucket>/paymentops/splits/train/",
+            "calibration": "s3://<bucket>/paymentops/splits/calibration/",
+            "test": "s3://<bucket>/paymentops/splits/test/",
+        },
+        "outputs": {
+            "metrics": "s3://<bucket>/paymentops/reports/metrics.json",
+            "model_registry": "paymentops-risk-routing",
+        },
     }
     emr = {
         "status": "emr_spark_job_config_scaffold_only",
         "entrypoint": "src/data/spark_feature_pipeline.py",
         "spark_submit_args": ["--master", "yarn", "--deploy-mode", "cluster"],
-        "input_paths": ["s3://<bucket>/paymentops/raw/cfpb/", "s3://<bucket>/paymentops/raw/fraud/"],
+        "input_paths": [
+            "s3://<bucket>/paymentops/raw/cfpb/",
+            "s3://<bucket>/paymentops/raw/fraud/",
+        ],
         "output_path": "s3://<bucket>/paymentops/processed/features/",
         "claim_boundary": "EMR-compatible job configuration only. No EMR execution is claimed.",
     }
@@ -65,7 +99,7 @@ def write_aws_readiness_pack() -> dict:
     write_json(ARTIFACTS_DIR / "aws" / "feature_store_manifest.json", feature_store)
     write_json(ARTIFACTS_DIR / "aws" / "sagemaker_pipeline_definition.json", pipeline)
     write_json(ARTIFACTS_DIR / "aws" / "emr_spark_job_config.json", emr)
-    body = f"""
+    body = """
 ## Purpose
 
 Add cloud-production-readiness evidence without overstating execution. These artifacts are compatible with common SageMaker/EMR-style workflows but are **not** actual AWS run logs.
@@ -85,8 +119,17 @@ Safe: `SageMaker-compatible model registry manifests, feature-store-style schema
 
 Unsafe unless actually run: `deployed on AWS`, `ran EMR jobs`, or `registered a model in SageMaker Model Registry`.
 """
-    write_report(REPORTS_DIR / "aws_sagemaker_readiness.md", "AWS and SageMaker Readiness Pack", body)
-    return {"model_registry": model_registry, "feature_store": feature_store, "pipeline": pipeline, "emr": emr}
+    write_report(
+        REPORTS_DIR / "aws_sagemaker_readiness.md",
+        "AWS and SageMaker Readiness Pack",
+        body,
+    )
+    return {
+        "model_registry": model_registry,
+        "feature_store": feature_store,
+        "pipeline": pipeline,
+        "emr": emr,
+    }
 
 
 def write_dataset_adapter_report() -> None:
@@ -107,7 +150,11 @@ Document full-public-dataset adapter readiness while keeping the repository smal
 
 The adapters do not download public datasets and do not include large raw files. They only standardize user-provided local public exports.
 """
-    write_report(REPORTS_DIR / "full_dataset_adapter_readiness.md", "Full Public Dataset Adapter Readiness", body)
+    write_report(
+        REPORTS_DIR / "full_dataset_adapter_readiness.md",
+        "Full Public Dataset Adapter Readiness",
+        body,
+    )
 
 
 def write_cicd_docker_report() -> None:
@@ -127,16 +174,33 @@ Add repository hygiene and CI/CD readiness evidence.
 
 This is CI/CD-ready scaffolding. A remote GitHub Actions pass should only be claimed after pushing to GitHub and verifying a successful workflow run.
 """
-    write_report(REPORTS_DIR / "ci_cd_docker_readiness.md", "CI/CD and Docker Readiness", body)
+    write_report(
+        REPORTS_DIR / "ci_cd_docker_readiness.md", "CI/CD and Docker Readiness", body
+    )
 
 
 def write_model_registry_report() -> None:
     versions = {
         "registry_name": "paymentops-local-model-registry",
         "versions": [
-            {"name": "vanilla_risk_model", "version": "0.1.0", "stage": "baseline", "approval": "ReferenceOnly"},
-            {"name": "rule_prior_residual_risk_router", "version": "0.1.0", "stage": "candidate", "approval": "PendingManualReview"},
-            {"name": "transformer_issue_router", "version": "0.0.0-scaffold", "stage": "fine_tuning_ready", "approval": "NotTrained"},
+            {
+                "name": "vanilla_risk_model",
+                "version": "0.1.0",
+                "stage": "baseline",
+                "approval": "ReferenceOnly",
+            },
+            {
+                "name": "rule_prior_residual_risk_router",
+                "version": "0.1.0",
+                "stage": "candidate",
+                "approval": "PendingManualReview",
+            },
+            {
+                "name": "transformer_issue_router",
+                "version": "0.0.0-scaffold",
+                "stage": "fine_tuning_ready",
+                "approval": "NotTrained",
+            },
         ],
         "claim_boundary": "Local manifest only. This is not a hosted MLflow or SageMaker registry unless later deployed and logged.",
     }
@@ -148,7 +212,9 @@ def write_model_registry_report() -> None:
 {json.dumps(versions, indent=2)}
 ```
 """
-    write_report(REPORTS_DIR / "model_registry_manifest.md", "Model Registry Manifest", body)
+    write_report(
+        REPORTS_DIR / "model_registry_manifest.md", "Model Registry Manifest", body
+    )
 
 
 def main() -> dict:

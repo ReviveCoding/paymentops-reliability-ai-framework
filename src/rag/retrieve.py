@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from src.rag.build_index import build_bm25_index
 
 

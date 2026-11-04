@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 from sklearn.metrics import (
-    f1_score, precision_score, recall_score, roc_auc_score, average_precision_score,
-    brier_score_loss, classification_report
+    average_precision_score,
+    brier_score_loss,
+    classification_report,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
 
 
@@ -11,7 +16,11 @@ def safe_auc(y_true, y_score, kind="roc") -> float:
     try:
         if len(set(y_true)) < 2:
             return 0.5
-        return float(roc_auc_score(y_true, y_score) if kind == "roc" else average_precision_score(y_true, y_score))
+        return float(
+            roc_auc_score(y_true, y_score)
+            if kind == "roc"
+            else average_precision_score(y_true, y_score)
+        )
     except Exception:
         return 0.5
 
@@ -73,5 +82,9 @@ def evidence_slot_metrics(required: set[str], predicted: set[str]) -> dict:
     fn = len(required - predicted)
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = 2*precision*recall/(precision+recall) if (precision + recall) else 0.0
-    return {"evidence_slot_precision": precision, "evidence_slot_recall": recall, "evidence_slot_f1": f1}
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    return {
+        "evidence_slot_precision": precision,
+        "evidence_slot_recall": recall,
+        "evidence_slot_f1": f1,
+    }

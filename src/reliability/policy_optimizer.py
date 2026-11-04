@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+
 from src.evaluation.metrics import binary_metrics, review_policy_metrics
 from src.utils import REPORTS_DIR, write_json, write_report
 
@@ -30,9 +32,13 @@ def _objective(metrics: dict) -> float:
     )
 
 
-def optimize_operating_policy(y_true, candidate_scores: dict[str, np.ndarray], *,
-                              max_review_burden: float = 0.45,
-                              max_false_auto_clear: float = 0.40) -> dict:
+def optimize_operating_policy(
+    y_true,
+    candidate_scores: dict[str, np.ndarray],
+    *,
+    max_review_burden: float = 0.45,
+    max_false_auto_clear: float = 0.40,
+) -> dict:
     """Search a small, reproducible operating-policy frontier.
 
     Parameters
@@ -55,7 +61,16 @@ def optimize_operating_policy(y_true, candidate_scores: dict[str, np.ndarray], *
             for cap in [0.25, 0.30, 0.35, 0.40, 0.45]:
                 m = binary_metrics(y_true, score, threshold=0.5)
                 m.update(review_policy_metrics(y_true, score, review_capacity_rate=cap))
-                rows.append({"score_name": name, "temperature": temp, "review_capacity": cap, "prior_weight": None, "metrics": m, "objective": _objective(m)})
+                rows.append(
+                    {
+                        "score_name": name,
+                        "temperature": temp,
+                        "review_capacity": cap,
+                        "prior_weight": None,
+                        "metrics": m,
+                        "objective": _objective(m),
+                    }
+                )
     # Pairwise blends, if both rule prior and learned model are present.
     if "rule_prior" in candidate_scores and "ml_residual" in candidate_scores:
         prior = np.asarray(candidate_scores["rule_prior"], dtype=float)
@@ -66,16 +81,37 @@ def optimize_operating_policy(y_true, candidate_scores: dict[str, np.ndarray], *
                 score = _temperature_scale(raw, temp)
                 for cap in [0.30, 0.35, 0.40, 0.45]:
                     m = binary_metrics(y_true, score, threshold=0.5)
-                    m.update(review_policy_metrics(y_true, score, review_capacity_rate=cap))
-                    rows.append({"score_name": "blend_rule_prior_ml_residual", "temperature": temp, "review_capacity": cap, "prior_weight": float(w), "metrics": m, "objective": _objective(m)})
+                    m.update(
+                        review_policy_metrics(y_true, score, review_capacity_rate=cap)
+                    )
+                    rows.append(
+                        {
+                            "score_name": "blend_rule_prior_ml_residual",
+                            "temperature": temp,
+                            "review_capacity": cap,
+                            "prior_weight": float(w),
+                            "metrics": m,
+                            "objective": _objective(m),
+                        }
+                    )
 
-    feasible = [r for r in rows if r["metrics"].get("review_burden", 1) <= max_review_burden and r["metrics"].get("false_auto_clear_rate", 1) <= max_false_auto_clear]
+    feasible = [
+        r
+        for r in rows
+        if r["metrics"].get("review_burden", 1) <= max_review_burden
+        and r["metrics"].get("false_auto_clear_rate", 1) <= max_false_auto_clear
+    ]
     chosen_pool = feasible if feasible else rows
     best = max(chosen_pool, key=lambda r: r["objective"])
-    selected_scores = candidate_scores.get(best["score_name"], None)
+    selected_scores = candidate_scores.get(best["score_name"])
     if best["score_name"] == "blend_rule_prior_ml_residual":
         w = best["prior_weight"] or 0.0
-        selected_scores = np.clip(w * candidate_scores["rule_prior"] + (1.0 - w) * candidate_scores["ml_residual"], 1e-6, 1 - 1e-6)
+        selected_scores = np.clip(
+            w * candidate_scores["rule_prior"]
+            + (1.0 - w) * candidate_scores["ml_residual"],
+            1e-6,
+            1 - 1e-6,
+        )
     selected_scores = _temperature_scale(selected_scores, best["temperature"])
     return {
         "selected_policy": best,
@@ -88,13 +124,16 @@ def optimize_operating_policy(y_true, candidate_scores: dict[str, np.ndarray], *
 def write_policy_frontier_report(policy_result: dict, baseline_metrics: dict) -> None:
     frontier = policy_result["frontier"][:10]
     selected = policy_result["selected_policy"]
-    write_json(REPORTS_DIR / "operating_policy_frontier.json", {
-        "constraint_status": policy_result["constraint_status"],
-        "selected_policy": selected,
-        "top_frontier": frontier,
-    })
+    write_json(
+        REPORTS_DIR / "operating_policy_frontier.json",
+        {
+            "constraint_status": policy_result["constraint_status"],
+            "selected_policy": selected,
+            "top_frontier": frontier,
+        },
+    )
     rows = "\n".join(
-        f"| {i+1} | {r['score_name']} | {r['temperature']:.2f} | {r['review_capacity']:.2f} | {str(r['prior_weight'])} | {r['metrics']['pr_auc']:.3f} | {r['metrics']['f2']:.3f} | {r['metrics']['high_risk_capture']:.3f} | {r['metrics']['false_auto_clear_rate']:.3f} | {r['metrics']['review_burden']:.3f} | {r['metrics']['ece']:.3f} | {r['objective']:.3f} |"
+        f"| {i + 1} | {r['score_name']} | {r['temperature']:.2f} | {r['review_capacity']:.2f} | {str(r['prior_weight'])} | {r['metrics']['pr_auc']:.3f} | {r['metrics']['f2']:.3f} | {r['metrics']['high_risk_capture']:.3f} | {r['metrics']['false_auto_clear_rate']:.3f} | {r['metrics']['review_burden']:.3f} | {r['metrics']['ece']:.3f} | {r['objective']:.3f} |"
         for i, r in enumerate(frontier)
     )
     sm = selected["metrics"]
@@ -107,23 +146,23 @@ The first enhanced implementation improved false auto-clear and evidence reliabi
 
 | Field | Value |
 |---|---|
-| Score source | `{selected['score_name']}` |
-| Temperature | {selected['temperature']:.2f} |
-| Review capacity | {selected['review_capacity']:.2f} |
-| Prior blend weight | `{selected['prior_weight']}` |
-| Constraint status | `{policy_result['constraint_status']}` |
+| Score source | `{selected["score_name"]}` |
+| Temperature | {selected["temperature"]:.2f} |
+| Review capacity | {selected["review_capacity"]:.2f} |
+| Prior blend weight | `{selected["prior_weight"]}` |
+| Constraint status | `{policy_result["constraint_status"]}` |
 
 ## Baseline vs selected operating policy
 
 | Metric | Vanilla baseline | Selected enhanced policy |
 |---|---:|---:|
-| PR-AUC | {baseline_metrics.get('pr_auc', 0):.3f} | {sm.get('pr_auc', 0):.3f} |
-| F2 | {baseline_metrics.get('f2', 0):.3f} | {sm.get('f2', 0):.3f} |
-| High-risk capture | {baseline_metrics.get('high_risk_capture', 0):.3f} | {sm.get('high_risk_capture', 0):.3f} |
-| False auto-clear | {baseline_metrics.get('false_auto_clear_rate', 1):.3f} | {sm.get('false_auto_clear_rate', 1):.3f} |
-| Review burden | {baseline_metrics.get('review_burden', 1):.3f} | {sm.get('review_burden', 1):.3f} |
-| Brier | {baseline_metrics.get('brier', 1):.3f} | {sm.get('brier', 1):.3f} |
-| ECE | {baseline_metrics.get('ece', 1):.3f} | {sm.get('ece', 1):.3f} |
+| PR-AUC | {baseline_metrics.get("pr_auc", 0):.3f} | {sm.get("pr_auc", 0):.3f} |
+| F2 | {baseline_metrics.get("f2", 0):.3f} | {sm.get("f2", 0):.3f} |
+| High-risk capture | {baseline_metrics.get("high_risk_capture", 0):.3f} | {sm.get("high_risk_capture", 0):.3f} |
+| False auto-clear | {baseline_metrics.get("false_auto_clear_rate", 1):.3f} | {sm.get("false_auto_clear_rate", 1):.3f} |
+| Review burden | {baseline_metrics.get("review_burden", 1):.3f} | {sm.get("review_burden", 1):.3f} |
+| Brier | {baseline_metrics.get("brier", 1):.3f} | {sm.get("brier", 1):.3f} |
+| ECE | {baseline_metrics.get("ece", 1):.3f} | {sm.get("ece", 1):.3f} |
 
 ## Top operating-policy candidates
 
@@ -135,4 +174,8 @@ The first enhanced implementation improved false auto-clear and evidence reliabi
 
 The final project now exposes a review-capacity frontier rather than a single brittle threshold. This is closer to financial-operations deployment review, where risk capture, false auto-clear, calibration, and analyst burden must be jointly managed.
 """
-    write_report(REPORTS_DIR / "10_operating_policy_frontier.md", "Operating Policy Frontier", body)
+    write_report(
+        REPORTS_DIR / "10_operating_policy_frontier.md",
+        "Operating Policy Frontier",
+        body,
+    )

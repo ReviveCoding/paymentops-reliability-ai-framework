@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
-import traceback
 import tempfile
+import traceback
 from pathlib import Path
 
 

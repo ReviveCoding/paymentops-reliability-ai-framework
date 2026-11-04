@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from src.utils import ROOT, REPORTS_DIR, write_json, write_report
+
+from src.utils import REPORTS_DIR, ROOT, write_json, write_report
 
 EXCLUDE_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache"}
 
@@ -26,8 +27,13 @@ def run_repository_audit() -> dict:
     # reports/09_release_decision.md. Therefore, 09_release_decision.md is verified
     # by the release-gate check, not by the pre-release repository audit.
     required = [
-        "README.md", "CLAIM_BOUNDARY.md", "Makefile", "Dockerfile", "requirements.txt",
-        "reports/02_baseline_results.md", "reports/03_reliability_ablation.md",
+        "README.md",
+        "CLAIM_BOUNDARY.md",
+        "Makefile",
+        "Dockerfile",
+        "requirements.txt",
+        "reports/02_baseline_results.md",
+        "reports/03_reliability_ablation.md",
         "RUN_VERIFICATION.md",
     ]
     missing = [p for p in required if not (ROOT / p).exists()]
@@ -42,7 +48,14 @@ def run_repository_audit() -> dict:
         "local_runnable_commands": ["make all", "make test", "make serve"],
     }
     write_json(REPORTS_DIR / "repository_audit.json", result)
-    rows = "\n".join([f"| {k} | `{v}` |" for k, v in result.items() if k not in {"large_files", "missing_required_files", "local_runnable_commands"}])
+    rows = "\n".join(
+        [
+            f"| {k} | `{v}` |"
+            for k, v in result.items()
+            if k
+            not in {"large_files", "missing_required_files", "local_runnable_commands"}
+        ]
+    )
     body = f"""
 ## Purpose
 
@@ -72,7 +85,11 @@ This audit checks whether the repository remains lightweight, local/GitHub runna
 
 No generated raw public datasets or large binaries are committed. The repository keeps sample/synthetic data for portability and keeps full-dataset adapters as code rather than cached data.
 """
-    write_report(REPORTS_DIR / "19_repository_runnability_audit.md", "Repository Runnability and Efficiency Audit", body)
+    write_report(
+        REPORTS_DIR / "19_repository_runnability_audit.md",
+        "Repository Runnability and Efficiency Audit",
+        body,
+    )
     return result
 
 

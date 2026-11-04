@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from src.baselines.vanilla_bm25_rag import SimpleBM25
 
 

@@ -11,7 +11,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -30,11 +29,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.scripts.run_operational_backtest import (
-    _prepare_operational_frame,
-    _split_train_val_test,
     _features,
     _labels,
+    _prepare_operational_frame,
     _score_model,
+    _split_train_val_test,
 )
 
 REVIEW_CAPACITIES = [0.05, 0.10, 0.20, 0.35, 0.50]
@@ -84,7 +83,9 @@ def _ece(y: np.ndarray, score: np.ndarray, n_bins: int = 10) -> float:
     return float(value)
 
 
-def _threshold_metrics(y: np.ndarray, score: np.ndarray, threshold: float, review_capacity: float) -> dict[str, Any]:
+def _threshold_metrics(
+    y: np.ndarray, score: np.ndarray, threshold: float, review_capacity: float
+) -> dict[str, Any]:
     y = np.asarray(y).astype(int)
     score = np.clip(np.asarray(score, dtype=float), 0.0, 1.0)
     pred = (score >= threshold).astype(int)
@@ -110,7 +111,9 @@ def _threshold_metrics(y: np.ndarray, score: np.ndarray, threshold: float, revie
     }
 
 
-def _capacity_metrics(y: np.ndarray, score: np.ndarray, review_capacity: float) -> dict[str, Any]:
+def _capacity_metrics(
+    y: np.ndarray, score: np.ndarray, review_capacity: float
+) -> dict[str, Any]:
     y = np.asarray(y).astype(int)
     score = np.clip(np.asarray(score, dtype=float), 0.0, 1.0)
     k = max(1, int(len(score) * review_capacity))
@@ -132,26 +135,69 @@ def _capacity_metrics(y: np.ndarray, score: np.ndarray, review_capacity: float) 
         "high_risk_capture": capture,
         "false_auto_clear": false_auto,
         "review_burden": float(review_capacity),
-        "capture_lift_vs_random": capture / review_capacity if review_capacity > 0 else None,
-        "false_auto_clear_reduction_vs_random": ((1.0 - review_capacity) - false_auto) / (1.0 - review_capacity)
+        "capture_lift_vs_random": capture / review_capacity
+        if review_capacity > 0
+        else None,
+        "false_auto_clear_reduction_vs_random": ((1.0 - review_capacity) - false_auto)
+        / (1.0 - review_capacity)
         if review_capacity < 1.0
         else None,
     }
 
 
-def _choose_threshold(y_val: np.ndarray, score_val: np.ndarray, n_thresholds: int, review_capacity: float, mode: str) -> dict[str, Any]:
-    candidates = [_threshold_metrics(y_val, score_val, float(t), review_capacity) for t in np.linspace(0.0, 1.0, n_thresholds)]
+def _choose_threshold(
+    y_val: np.ndarray,
+    score_val: np.ndarray,
+    n_thresholds: int,
+    review_capacity: float,
+    mode: str,
+) -> dict[str, Any]:
+    candidates = [
+        _threshold_metrics(y_val, score_val, float(t), review_capacity)
+        for t in np.linspace(0.0, 1.0, n_thresholds)
+    ]
     if mode == "maximize_f2":
-        best = max(candidates, key=lambda r: (r["f2"], r["recall"], -abs(r["review_burden"] - review_capacity)))
+        best = max(
+            candidates,
+            key=lambda r: (
+                r["f2"],
+                r["recall"],
+                -abs(r["review_burden"] - review_capacity),
+            ),
+        )
     elif mode == "maximize_capture_under_review_capacity":
-        feasible = [r for r in candidates if r["review_burden"] <= review_capacity] or candidates
-        best = max(feasible, key=lambda r: (r["high_risk_capture"], -r["false_auto_clear"], -r["review_burden"]))
+        feasible = [
+            r for r in candidates if r["review_burden"] <= review_capacity
+        ] or candidates
+        best = max(
+            feasible,
+            key=lambda r: (
+                r["high_risk_capture"],
+                -r["false_auto_clear"],
+                -r["review_burden"],
+            ),
+        )
     elif mode == "minimize_false_auto_clear_under_review_capacity":
-        feasible = [r for r in candidates if r["review_burden"] <= review_capacity] or candidates
-        best = min(feasible, key=lambda r: (r["false_auto_clear"], -r["high_risk_capture"], r["review_burden"]))
+        feasible = [
+            r for r in candidates if r["review_burden"] <= review_capacity
+        ] or candidates
+        best = min(
+            feasible,
+            key=lambda r: (
+                r["false_auto_clear"],
+                -r["high_risk_capture"],
+                r["review_burden"],
+            ),
+        )
     elif mode == "utility_score":
+
         def utility(r: dict[str, Any]) -> float:
-            return 2.0 * r["high_risk_capture"] - r["false_auto_clear"] - 0.25 * r["review_burden"]
+            return (
+                2.0 * r["high_risk_capture"]
+                - r["false_auto_clear"]
+                - 0.25 * r["review_burden"]
+            )
+
         best = max(candidates, key=utility)
         best = dict(best)
         best["utility_score"] = utility(best)
@@ -166,7 +212,7 @@ class SigmoidScoreCalibrator:
     def __init__(self) -> None:
         self.model = LogisticRegression(max_iter=1000)
 
-    def fit(self, score: np.ndarray, y: np.ndarray) -> "SigmoidScoreCalibrator":
+    def fit(self, score: np.ndarray, y: np.ndarray) -> SigmoidScoreCalibrator:
         eps = 1e-6
         score = np.clip(np.asarray(score, dtype=float), eps, 1.0 - eps)
         logit = np.log(score / (1.0 - score)).reshape(-1, 1)
@@ -180,24 +226,43 @@ class SigmoidScoreCalibrator:
         return self.model.predict_proba(logit)[:, 1]
 
 
-def _build_text_numeric_model(numeric_cols: list[str], max_features: int, random_state: int) -> Pipeline:
+def _build_text_numeric_model(
+    numeric_cols: list[str], max_features: int, random_state: int
+) -> Pipeline:
     transformers: list[tuple[str, Any, Any]] = [
-        ("text", TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), min_df=2), "text"),
+        (
+            "text",
+            TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), min_df=2),
+            "text",
+        ),
     ]
     if numeric_cols:
         transformers.append(
             (
                 "num",
-                Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler(with_mean=False))]),
+                Pipeline(
+                    [
+                        ("impute", SimpleImputer(strategy="median")),
+                        ("scale", StandardScaler(with_mean=False)),
+                    ]
+                ),
                 numeric_cols,
             )
         )
     return Pipeline(
         [
-            ("preprocess", ColumnTransformer(transformers=transformers, remainder="drop")),
+            (
+                "preprocess",
+                ColumnTransformer(transformers=transformers, remainder="drop"),
+            ),
             (
                 "model",
-                LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear", random_state=random_state),
+                LogisticRegression(
+                    max_iter=1000,
+                    class_weight="balanced",
+                    solver="liblinear",
+                    random_state=random_state,
+                ),
             ),
         ]
     )
@@ -212,7 +277,12 @@ def _build_numeric_logreg(numeric_cols: list[str], random_state: int) -> Pipelin
                     [
                         (
                             "num",
-                            Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler())]),
+                            Pipeline(
+                                [
+                                    ("impute", SimpleImputer(strategy="median")),
+                                    ("scale", StandardScaler()),
+                                ]
+                            ),
                             numeric_cols,
                         )
                     ],
@@ -221,7 +291,12 @@ def _build_numeric_logreg(numeric_cols: list[str], random_state: int) -> Pipelin
             ),
             (
                 "model",
-                LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear", random_state=random_state),
+                LogisticRegression(
+                    max_iter=1000,
+                    class_weight="balanced",
+                    solver="liblinear",
+                    random_state=random_state,
+                ),
             ),
         ]
     )
@@ -230,16 +305,34 @@ def _build_numeric_logreg(numeric_cols: list[str], random_state: int) -> Pipelin
 def _build_numeric_hgb(numeric_cols: list[str], random_state: int) -> Pipeline:
     return Pipeline(
         [
-            ("preprocess", ColumnTransformer([("num", SimpleImputer(strategy="median"), numeric_cols)], remainder="drop")),
+            (
+                "preprocess",
+                ColumnTransformer(
+                    [("num", SimpleImputer(strategy="median"), numeric_cols)],
+                    remainder="drop",
+                ),
+            ),
             (
                 "model",
-                HistGradientBoostingClassifier(max_iter=120, learning_rate=0.08, l2_regularization=0.01, random_state=random_state),
+                HistGradientBoostingClassifier(
+                    max_iter=120,
+                    learning_rate=0.08,
+                    l2_regularization=0.01,
+                    random_state=random_state,
+                ),
             ),
         ]
     )
 
 
-def _fit_predict_model(name: str, model: Any, train: pd.DataFrame, val: pd.DataFrame, test: pd.DataFrame, model_path: Path) -> dict[str, Any]:
+def _fit_predict_model(
+    name: str,
+    model: Any,
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame,
+    model_path: Path,
+) -> dict[str, Any]:
     start = time.perf_counter()
     model.fit(_features(train), _labels(train))
     fit_seconds = time.perf_counter() - start
@@ -340,12 +433,26 @@ def _fit_stacking(
     }
 
 
-def _evaluate_model_scores(name: str, y_val: np.ndarray, val_score: np.ndarray, y_test: np.ndarray, test_score: np.ndarray, review_capacity: float, n_thresholds: int, fit_seconds: float, allowed: bool) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+def _evaluate_model_scores(
+    name: str,
+    y_val: np.ndarray,
+    val_score: np.ndarray,
+    y_test: np.ndarray,
+    test_score: np.ndarray,
+    review_capacity: float,
+    n_thresholds: int,
+    fit_seconds: float,
+    allowed: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     threshold_rows = []
     best_f2_row = None
     for mode in THRESHOLD_MODES:
-        selected = _choose_threshold(y_val, val_score, n_thresholds, review_capacity, mode)
-        test_metrics = _threshold_metrics(y_test, test_score, selected["threshold"], review_capacity)
+        selected = _choose_threshold(
+            y_val, val_score, n_thresholds, review_capacity, mode
+        )
+        test_metrics = _threshold_metrics(
+            y_test, test_score, selected["threshold"], review_capacity
+        )
         row = {
             "model": name,
             "threshold_mode": mode,
@@ -381,7 +488,9 @@ def _evaluate_model_scores(name: str, y_val: np.ndarray, val_score: np.ndarray, 
         "capacity_high_risk_capture": cap["high_risk_capture"],
         "capacity_false_auto_clear": cap["false_auto_clear"],
         "capture_lift_vs_random": cap["capture_lift_vs_random"],
-        "false_auto_clear_reduction_vs_random": cap["false_auto_clear_reduction_vs_random"],
+        "false_auto_clear_reduction_vs_random": cap[
+            "false_auto_clear_reduction_vs_random"
+        ],
         "fixed05_f2": fixed["f2"],
         "fixed05_precision": fixed["precision"],
         "fixed05_recall": fixed["recall"],
@@ -389,8 +498,12 @@ def _evaluate_model_scores(name: str, y_val: np.ndarray, val_score: np.ndarray, 
         "opt_f2": best_f2_row["test_f2"] if best_f2_row else None,
         "opt_precision": best_f2_row["test_precision"] if best_f2_row else None,
         "opt_recall": best_f2_row["test_recall"] if best_f2_row else None,
-        "opt_high_risk_capture": best_f2_row["test_high_risk_capture"] if best_f2_row else None,
-        "opt_false_auto_clear": best_f2_row["test_false_auto_clear"] if best_f2_row else None,
+        "opt_high_risk_capture": best_f2_row["test_high_risk_capture"]
+        if best_f2_row
+        else None,
+        "opt_false_auto_clear": best_f2_row["test_false_auto_clear"]
+        if best_f2_row
+        else None,
         "opt_review_burden": best_f2_row["test_review_burden"] if best_f2_row else None,
     }
     frontier_rows = []
@@ -402,7 +515,9 @@ def _evaluate_model_scores(name: str, y_val: np.ndarray, val_score: np.ndarray, 
     return threshold_rows, frontier_rows, summary
 
 
-def _source_slice_eval(model_name: str, test: pd.DataFrame, score: np.ndarray, review_capacity: float) -> list[dict[str, Any]]:
+def _source_slice_eval(
+    model_name: str, test: pd.DataFrame, score: np.ndarray, review_capacity: float
+) -> list[dict[str, Any]]:
     work = test.copy()
     work["_score_eval"] = np.asarray(score, dtype=float)
     amount = pd.to_numeric(work.get("amount", 0.0), errors="coerce").fillna(0.0)
@@ -420,41 +535,67 @@ def _source_slice_eval(model_name: str, test: pd.DataFrame, score: np.ndarray, r
     rows = []
     for slice_name, frame in slices.items():
         if len(frame) == 0:
-            rows.append({"model": model_name, "slice": slice_name, "status": "EMPTY", "rows": 0, "positives": 0})
+            rows.append(
+                {
+                    "model": model_name,
+                    "slice": slice_name,
+                    "status": "EMPTY",
+                    "rows": 0,
+                    "positives": 0,
+                }
+            )
             continue
         y = _labels(frame)
         s = frame["_score_eval"].to_numpy()
         cap = _capacity_metrics(y, s, review_capacity)
         fixed = _threshold_metrics(y, s, 0.5, review_capacity)
-        rows.append({
-            "model": model_name,
-            "slice": slice_name,
-            "status": "PASS" if len(np.unique(y)) > 1 else "ONE_CLASS",
-            "rows": int(len(frame)),
-            "positives": int(y.sum()),
-            "positive_rate": float(y.mean()) if len(y) else 0.0,
-            "pr_auc": cap["pr_auc"],
-            "roc_auc": cap["roc_auc"],
-            "brier": cap["brier"],
-            "ece": cap["ece"],
-            "high_risk_capture": cap["high_risk_capture"],
-            "false_auto_clear": cap["false_auto_clear"],
-            "f2_at_05": fixed["f2"],
-        })
+        rows.append(
+            {
+                "model": model_name,
+                "slice": slice_name,
+                "status": "PASS" if len(np.unique(y)) > 1 else "ONE_CLASS",
+                "rows": int(len(frame)),
+                "positives": int(y.sum()),
+                "positive_rate": float(y.mean()) if len(y) else 0.0,
+                "pr_auc": cap["pr_auc"],
+                "roc_auc": cap["roc_auc"],
+                "brier": cap["brier"],
+                "ece": cap["ece"],
+                "high_risk_capture": cap["high_risk_capture"],
+                "false_auto_clear": cap["false_auto_clear"],
+                "f2_at_05": fixed["f2"],
+            }
+        )
     return rows
 
 
-def _constrained_champion(summary_rows: list[dict[str, Any]], slice_rows: list[dict[str, Any]], baseline_name: str) -> tuple[str, list[dict[str, Any]]]:
+def _constrained_champion(
+    summary_rows: list[dict[str, Any]],
+    slice_rows: list[dict[str, Any]],
+    baseline_name: str,
+) -> tuple[str, list[dict[str, Any]]]:
     baseline = next(row for row in summary_rows if row["model"] == baseline_name)
 
     def source_ok(model_name: str) -> bool:
-        relevant = [r for r in slice_rows if r.get("model") == model_name and r.get("slice") in {"ibm_aml_only", "cfpb_only"} and r.get("status") == "PASS" and r.get("positives", 0) >= 20]
+        relevant = [
+            r
+            for r in slice_rows
+            if r.get("model") == model_name
+            and r.get("slice") in {"ibm_aml_only", "cfpb_only"}
+            and r.get("status") == "PASS"
+            and r.get("positives", 0) >= 20
+        ]
         if not relevant:
             return True
         for r in relevant:
-            if r.get("pr_auc") is not None and r.get("pr_auc") < r.get("positive_rate", 0.0):
+            if r.get("pr_auc") is not None and r.get("pr_auc") < r.get(
+                "positive_rate", 0.0
+            ):
                 return False
-            if r.get("high_risk_capture") is not None and r.get("high_risk_capture") < 0.35:
+            if (
+                r.get("high_risk_capture") is not None
+                and r.get("high_risk_capture") < 0.35
+            ):
                 return False
         return True
 
@@ -469,12 +610,15 @@ def _constrained_champion(summary_rows: list[dict[str, Any]], slice_rows: list[d
         else:
             checks = {
                 "pr_auc": (row["pr_auc"] or 0.0) >= (baseline["pr_auc"] or 0.0) * 0.995,
-                "roc_auc": (row["roc_auc"] or 0.0) >= (baseline["roc_auc"] or 0.0) * 0.995,
+                "roc_auc": (row["roc_auc"] or 0.0)
+                >= (baseline["roc_auc"] or 0.0) * 0.995,
                 "opt_f2": (row["opt_f2"] or 0.0) >= (baseline["opt_f2"] or 0.0) * 0.98,
                 "brier": (row["brier"] or 999.0) <= (baseline["brier"] or 999.0),
                 "ece": (row["ece"] or 999.0) <= (baseline["ece"] or 999.0),
-                "capture": (row["capacity_high_risk_capture"] or 0.0) >= (baseline["capacity_high_risk_capture"] or 0.0),
-                "false_auto_clear": (row["capacity_false_auto_clear"] or 999.0) <= (baseline["capacity_false_auto_clear"] or 999.0),
+                "capture": (row["capacity_high_risk_capture"] or 0.0)
+                >= (baseline["capacity_high_risk_capture"] or 0.0),
+                "false_auto_clear": (row["capacity_false_auto_clear"] or 999.0)
+                <= (baseline["capacity_false_auto_clear"] or 999.0),
                 "source_ok": source_ok(name),
             }
             eligible = all(checks.values())
@@ -487,7 +631,15 @@ def _constrained_champion(summary_rows: list[dict[str, Any]], slice_rows: list[d
             - 0.10 * (row["brier"] or 1.0)
             - 0.05 * (row["ece"] or 1.0)
         )
-        decisions.append({"model": name, "eligible": bool(eligible), "failed_constraints": ",".join(failed), "selection_score": float(score), "baseline_model": baseline_name})
+        decisions.append(
+            {
+                "model": name,
+                "eligible": bool(eligible),
+                "failed_constraints": ",".join(failed),
+                "selection_score": float(score),
+                "baseline_model": baseline_name,
+            }
+        )
         if eligible and score > best_score:
             best_score = score
             best_name = name
@@ -497,7 +649,10 @@ def _constrained_champion(summary_rows: list[dict[str, Any]], slice_rows: list[d
 def _md_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
     if not rows:
         return "_No rows._"
-    lines = ["| " + " | ".join(columns) + " |", "| " + " | ".join(["---"] * len(columns)) + " |"]
+    lines = [
+        "| " + " | ".join(columns) + " |",
+        "| " + " | ".join(["---"] * len(columns)) + " |",
+    ]
     for row in rows:
         vals = []
         for col in columns:
@@ -514,7 +669,9 @@ def _md_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--input-csv", default=None)
     parser.add_argument("--max-features", type=int, default=10000)
     parser.add_argument("--review-capacity", type=float, default=0.35)
@@ -525,7 +682,11 @@ def main() -> None:
     external_root = Path(args.external_root)
     if not external_root.exists():
         raise FileNotFoundError(f"External root not found: {external_root}")
-    input_csv = Path(args.input_csv) if args.input_csv else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    input_csv = (
+        Path(args.input_csv)
+        if args.input_csv
+        else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    )
     if not input_csv.exists():
         raise FileNotFoundError(f"Common schema input not found: {input_csv}")
 
@@ -548,20 +709,66 @@ def main() -> None:
     all_numeric = ["log_amount", "text_length", "is_cfpb", "is_ibm_aml", "event_rank"]
 
     specs = [
-        ("vanilla_text_only", _build_text_numeric_model([], args.max_features, args.random_state), True),
-        ("text_plus_amount", _build_text_numeric_model(amount_only, args.max_features, args.random_state), True),
-        ("text_plus_amount_text_length", _build_text_numeric_model(amount_text_length, args.max_features, args.random_state), True),
-        ("text_plus_source_flags", _build_text_numeric_model(source_flags, args.max_features, args.random_state), False),
-        ("text_plus_event_rank", _build_text_numeric_model(event_rank, args.max_features, args.random_state), False),
-        ("text_plus_safe_numeric_without_source_or_event_rank", _build_text_numeric_model(safe_numeric, args.max_features, args.random_state), True),
-        ("text_plus_all_numeric", _build_text_numeric_model(all_numeric, args.max_features, args.random_state), False),
-        ("numeric_hist_gradient_boosting_safe", _build_numeric_hgb(safe_numeric, args.random_state), True),
+        (
+            "vanilla_text_only",
+            _build_text_numeric_model([], args.max_features, args.random_state),
+            True,
+        ),
+        (
+            "text_plus_amount",
+            _build_text_numeric_model(
+                amount_only, args.max_features, args.random_state
+            ),
+            True,
+        ),
+        (
+            "text_plus_amount_text_length",
+            _build_text_numeric_model(
+                amount_text_length, args.max_features, args.random_state
+            ),
+            True,
+        ),
+        (
+            "text_plus_source_flags",
+            _build_text_numeric_model(
+                source_flags, args.max_features, args.random_state
+            ),
+            False,
+        ),
+        (
+            "text_plus_event_rank",
+            _build_text_numeric_model(event_rank, args.max_features, args.random_state),
+            False,
+        ),
+        (
+            "text_plus_safe_numeric_without_source_or_event_rank",
+            _build_text_numeric_model(
+                safe_numeric, args.max_features, args.random_state
+            ),
+            True,
+        ),
+        (
+            "text_plus_all_numeric",
+            _build_text_numeric_model(
+                all_numeric, args.max_features, args.random_state
+            ),
+            False,
+        ),
+        (
+            "numeric_hist_gradient_boosting_safe",
+            _build_numeric_hgb(safe_numeric, args.random_state),
+            True,
+        ),
     ]
 
     model_outputs = []
     allowed_map: dict[str, bool] = {}
     for name, model, allowed in specs:
-        model_outputs.append(_fit_predict_model(name, model, train, val, test, models_dir / f"{stamp}_{name}.joblib"))
+        model_outputs.append(
+            _fit_predict_model(
+                name, model, train, val, test, models_dir / f"{stamp}_{name}.joblib"
+            )
+        )
         allowed_map[name] = allowed
 
     stack_text_amount = _fit_stacking(
@@ -569,7 +776,13 @@ def main() -> None:
         train,
         val,
         test,
-        [("text", _build_text_numeric_model([], args.max_features, args.random_state)), ("amount", _build_numeric_logreg(amount_only, args.random_state))],
+        [
+            (
+                "text",
+                _build_text_numeric_model([], args.max_features, args.random_state),
+            ),
+            ("amount", _build_numeric_logreg(amount_only, args.random_state)),
+        ],
         args.random_state,
         False,
         models_dir / f"{stamp}_score_level_stacking_text_amount.joblib",
@@ -583,7 +796,10 @@ def main() -> None:
         val,
         test,
         [
-            ("text", _build_text_numeric_model([], args.max_features, args.random_state)),
+            (
+                "text",
+                _build_text_numeric_model([], args.max_features, args.random_state),
+            ),
             ("safe_numeric", _build_numeric_logreg(safe_numeric, args.random_state)),
             ("hgb_safe_numeric", _build_numeric_hgb(safe_numeric, args.random_state)),
         ],
@@ -600,7 +816,10 @@ def main() -> None:
         val,
         test,
         [
-            ("text", _build_text_numeric_model([], args.max_features, args.random_state)),
+            (
+                "text",
+                _build_text_numeric_model([], args.max_features, args.random_state),
+            ),
             ("safe_numeric", _build_numeric_logreg(safe_numeric, args.random_state)),
             ("hgb_safe_numeric", _build_numeric_hgb(safe_numeric, args.random_state)),
         ],
@@ -631,9 +850,13 @@ def main() -> None:
         threshold_rows.extend(t_rows)
         frontier_rows.extend(f_rows)
         summary_rows.append(summary)
-        slice_rows.extend(_source_slice_eval(name, test, output["test_score"], args.review_capacity))
+        slice_rows.extend(
+            _source_slice_eval(name, test, output["test_score"], args.review_capacity)
+        )
 
-    champion_name, selection_rows = _constrained_champion(summary_rows, slice_rows, "vanilla_text_only")
+    champion_name, selection_rows = _constrained_champion(
+        summary_rows, slice_rows, "vanilla_text_only"
+    )
     baseline = next(r for r in summary_rows if r["model"] == "vanilla_text_only")
     champion = next(r for r in summary_rows if r["model"] == champion_name)
 
@@ -657,19 +880,34 @@ def main() -> None:
         "Do not claim source-identity features are production-safe; they are ablation-only unless source-separated evaluation supports them.",
     ]
 
-    pd.DataFrame(summary_rows).to_csv(output_dir / "feature_ablation_results.csv", index=False)
-    pd.DataFrame(threshold_rows).to_csv(output_dir / "threshold_optimization_results.csv", index=False)
-    pd.DataFrame(slice_rows).to_csv(output_dir / "source_slice_results.csv", index=False)
-    pd.DataFrame(selection_rows).to_csv(output_dir / "constrained_champion_selection.csv", index=False)
-    pd.DataFrame(frontier_rows).to_csv(output_dir / "review_capacity_frontier_improvement.csv", index=False)
+    pd.DataFrame(summary_rows).to_csv(
+        output_dir / "feature_ablation_results.csv", index=False
+    )
+    pd.DataFrame(threshold_rows).to_csv(
+        output_dir / "threshold_optimization_results.csv", index=False
+    )
+    pd.DataFrame(slice_rows).to_csv(
+        output_dir / "source_slice_results.csv", index=False
+    )
+    pd.DataFrame(selection_rows).to_csv(
+        output_dir / "constrained_champion_selection.csv", index=False
+    )
+    pd.DataFrame(frontier_rows).to_csv(
+        output_dir / "review_capacity_frontier_improvement.csv", index=False
+    )
 
     result = {
         "status": "PASS",
         "claim_boundary": "External public-data model-improvement sweep only. No proprietary bank data, production payment logs, real customer account data, or regulatory certification.",
         "input_csv": str(input_csv),
         "rows": int(len(df)),
-        "source_counts": {str(k): int(v) for k, v in df["source_dataset"].value_counts().to_dict().items()},
-        "label_counts": {str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()},
+        "source_counts": {
+            str(k): int(v)
+            for k, v in df["source_dataset"].value_counts().to_dict().items()
+        },
+        "label_counts": {
+            str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()
+        },
         "temporal_split": {
             "train_rows": int(len(train)),
             "validation_rows": int(len(val)),
@@ -690,14 +928,22 @@ def main() -> None:
         "external_artifacts": {
             "output_dir": str(output_dir),
             "models_dir": str(models_dir),
-            "feature_ablation_results": str(output_dir / "feature_ablation_results.csv"),
-            "threshold_optimization_results": str(output_dir / "threshold_optimization_results.csv"),
+            "feature_ablation_results": str(
+                output_dir / "feature_ablation_results.csv"
+            ),
+            "threshold_optimization_results": str(
+                output_dir / "threshold_optimization_results.csv"
+            ),
             "source_slice_results": str(output_dir / "source_slice_results.csv"),
-            "constrained_champion_selection": str(output_dir / "constrained_champion_selection.csv"),
+            "constrained_champion_selection": str(
+                output_dir / "constrained_champion_selection.csv"
+            ),
         },
     }
 
-    (reports_dir / "model_improvement_sweep_metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (reports_dir / "model_improvement_sweep_metrics.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
     summary_cols = [
         "model",
@@ -729,7 +975,16 @@ def main() -> None:
         "## Feature ablation and calibrated stacking summary\n",
         _md_table(summary_rows, summary_cols),
         "\n## Constrained champion selection\n",
-        _md_table(selection_rows, ["model", "eligible", "failed_constraints", "selection_score", "baseline_model"]),
+        _md_table(
+            selection_rows,
+            [
+                "model",
+                "eligible",
+                "failed_constraints",
+                "selection_score",
+                "baseline_model",
+            ],
+        ),
         "\n## Selected constrained champion\n",
         f"- Champion decision: `{champion_name}`\n",
         "## Baseline metrics\n",
@@ -737,35 +992,66 @@ def main() -> None:
         "## Champion metrics\n",
         "```json\n" + json.dumps(champion, indent=2) + "\n```\n",
         "## Source-separated evaluation\n",
-        _md_table(slice_rows, ["model", "slice", "status", "rows", "positives", "positive_rate", "pr_auc", "roc_auc", "brier", "ece", "high_risk_capture", "false_auto_clear", "f2_at_05"]),
+        _md_table(
+            slice_rows,
+            [
+                "model",
+                "slice",
+                "status",
+                "rows",
+                "positives",
+                "positive_rate",
+                "pr_auc",
+                "roc_auc",
+                "brier",
+                "ece",
+                "high_risk_capture",
+                "false_auto_clear",
+                "f2_at_05",
+            ],
+        ),
         "\n## Resume-safe claims\n",
     ]
     md.extend([f"- {claim}" for claim in resume_safe_claims])
     md.append("\n## Claims not to use\n")
     md.extend([f"- {claim}" for claim in claims_not_to_use])
     md.append("\n## External artifacts\n")
-    md.extend([f"- {key}: `{value}`" for key, value in result["external_artifacts"].items()])
-    (reports_dir / "26_model_improvement_sweep.md").write_text("\n".join(md), encoding="utf-8")
+    md.extend(
+        [f"- {key}: `{value}`" for key, value in result["external_artifacts"].items()]
+    )
+    (reports_dir / "26_model_improvement_sweep.md").write_text(
+        "\n".join(md), encoding="utf-8"
+    )
 
-    claims_md = ["# Model Improvement Resume Claims\n", "## Use these claims only if consistent with the latest report\n"]
+    claims_md = [
+        "# Model Improvement Resume Claims\n",
+        "## Use these claims only if consistent with the latest report\n",
+    ]
     claims_md.extend([f"- {claim}" for claim in resume_safe_claims])
     claims_md.append("\n## Do not use\n")
     claims_md.extend([f"- {claim}" for claim in claims_not_to_use])
-    (reports_dir / "26_model_improvement_resume_claims.md").write_text("\n".join(claims_md), encoding="utf-8")
+    (reports_dir / "26_model_improvement_resume_claims.md").write_text(
+        "\n".join(claims_md), encoding="utf-8"
+    )
 
-    print(json.dumps({
-        "status": "PASS",
-        "rows": int(len(df)),
-        "test_rows": int(len(test)),
-        "baseline_model": "vanilla_text_only",
-        "constrained_champion": champion_name,
-        "baseline_metrics": baseline,
-        "champion_metrics": champion,
-        "resume_safe_claims": resume_safe_claims,
-        "claims_not_to_use": claims_not_to_use,
-        "report": "reports/26_model_improvement_sweep.md",
-        "external_output_dir": str(output_dir),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "rows": int(len(df)),
+                "test_rows": int(len(test)),
+                "baseline_model": "vanilla_text_only",
+                "constrained_champion": champion_name,
+                "baseline_metrics": baseline,
+                "champion_metrics": champion,
+                "resume_safe_claims": resume_safe_claims,
+                "claims_not_to_use": claims_not_to_use,
+                "report": "reports/26_model_improvement_sweep.md",
+                "external_output_dir": str(output_dir),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
