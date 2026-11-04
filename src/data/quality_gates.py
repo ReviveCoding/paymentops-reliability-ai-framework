@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-import pandas as pd
-from src.utils import DATA_DIR, REPORTS_DIR, write_report
-from src.data.common_schema import load_common_cases
 
-REQUIRED = ["case_id", "source_dataset", "event_time", "case_type", "text", "risk_label", "route_label"]
+import pandas as pd
+
+from src.data.common_schema import load_common_cases
+from src.utils import DATA_DIR, REPORTS_DIR, write_report
+
+REQUIRED = [
+    "case_id",
+    "source_dataset",
+    "event_time",
+    "case_type",
+    "text",
+    "risk_label",
+    "route_label",
+]
 
 
 def validate_common_cases(df: pd.DataFrame) -> dict:
@@ -29,14 +39,18 @@ def validate_common_cases(df: pd.DataFrame) -> dict:
         "null_counts": null_counts,
         "duplicates": duplicates,
         "invalid_labels": invalid_labels,
-        "source_counts": df["source_dataset"].value_counts().to_dict() if not df.empty else {},
+        "source_counts": df["source_dataset"].value_counts().to_dict()
+        if not df.empty
+        else {},
     }
 
 
 def write_data_inventory() -> dict:
     df = load_common_cases()
     result = validate_common_cases(df)
-    source_rows = "\n".join([f"| {k} | {v} |" for k, v in result["source_counts"].items()])
+    source_rows = "\n".join(
+        [f"| {k} | {v} |" for k, v in result["source_counts"].items()]
+    )
     body = f"""
 ## Claim boundary
 
@@ -44,10 +58,10 @@ This repository uses public-style sample data and synthetic ISO 20022-inspired p
 
 ## Data quality result
 
-- Passed: `{result['passed']}`
-- Total rows: `{result['row_count']}`
-- Duplicate case IDs: `{result['duplicates']}`
-- Invalid labels: `{result['invalid_labels']}`
+- Passed: `{result["passed"]}`
+- Total rows: `{result["row_count"]}`
+- Duplicate case IDs: `{result["duplicates"]}`
+- Invalid labels: `{result["invalid_labels"]}`
 
 ## Source inventory
 
@@ -58,14 +72,16 @@ This repository uses public-style sample data and synthetic ISO 20022-inspired p
 ## Required field null counts
 
 ```json
-{result['null_counts']}
+{result["null_counts"]}
 ```
 
 ## Notes
 
 The data layer is designed to be replaceable with real public CFPB exports, a real fraud benchmark, and additional governance datasets later. The sample data keeps the repository runnable without external downloads.
 """
-    write_report(REPORTS_DIR / "01_data_inventory.md", "Data Inventory and Quality Gates", body)
+    write_report(
+        REPORTS_DIR / "01_data_inventory.md", "Data Inventory and Quality Gates", body
+    )
     return result
 
 

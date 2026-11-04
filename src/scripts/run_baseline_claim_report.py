@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -11,7 +11,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
@@ -22,15 +21,14 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 from src.scripts.run_operational_backtest import (
-    _prepare_operational_frame,
-    _split_train_val_test,
     _build_model,
     _features,
     _labels,
-    _score_model,
     _metrics_for_scores,
+    _prepare_operational_frame,
+    _score_model,
+    _split_train_val_test,
 )
-
 
 REVIEW_CAPACITIES = [0.05, 0.10, 0.20, 0.35, 0.50]
 
@@ -72,13 +70,17 @@ def _ece(y_true: np.ndarray, score: np.ndarray, n_bins: int = 10) -> float:
     return float(ece)
 
 
-def _calibration_slope_intercept(y_true: np.ndarray, score: np.ndarray) -> dict[str, float | None]:
+def _calibration_slope_intercept(
+    y_true: np.ndarray, score: np.ndarray
+) -> dict[str, float | None]:
     y_true = np.asarray(y_true).astype(int)
     score = np.asarray(score).astype(float)
     if len(np.unique(y_true)) < 2:
         return {"calibration_intercept": None, "calibration_slope": None}
     eps = 1e-6
-    logit = np.log(np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))).reshape(-1, 1)
+    logit = np.log(
+        np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))
+    ).reshape(-1, 1)
     cal = LogisticRegression(max_iter=1000)
     cal.fit(logit, y_true)
     return {
@@ -91,17 +93,21 @@ class SigmoidScoreCalibrator:
     def __init__(self) -> None:
         self.model = LogisticRegression(max_iter=1000)
 
-    def fit(self, score: np.ndarray, y: np.ndarray) -> "SigmoidScoreCalibrator":
+    def fit(self, score: np.ndarray, y: np.ndarray) -> SigmoidScoreCalibrator:
         eps = 1e-6
         score = np.asarray(score, dtype=float)
-        x = np.log(np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))).reshape(-1, 1)
+        x = np.log(
+            np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))
+        ).reshape(-1, 1)
         self.model.fit(x, np.asarray(y).astype(int))
         return self
 
     def predict_score(self, score: np.ndarray) -> np.ndarray:
         eps = 1e-6
         score = np.asarray(score, dtype=float)
-        x = np.log(np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))).reshape(-1, 1)
+        x = np.log(
+            np.clip(score, eps, 1 - eps) / (1 - np.clip(score, eps, 1 - eps))
+        ).reshape(-1, 1)
         return self.model.predict_proba(x)[:, 1]
 
 
@@ -124,23 +130,30 @@ def _evaluate_score_vector(
         metrics["random_expected_false_auto_clear"] = expected_random_false_auto_clear
         metrics["capture_lift_vs_random"] = (
             metrics["high_risk_capture"] / expected_random_capture
-            if metrics.get("high_risk_capture") is not None and expected_random_capture > 0
+            if metrics.get("high_risk_capture") is not None
+            and expected_random_capture > 0
             else None
         )
         metrics["false_auto_clear_reduction_vs_random"] = (
-            (expected_random_false_auto_clear - metrics["false_auto_clear"]) / expected_random_false_auto_clear
-            if metrics.get("false_auto_clear") is not None and expected_random_false_auto_clear > 0
+            (expected_random_false_auto_clear - metrics["false_auto_clear"])
+            / expected_random_false_auto_clear
+            if metrics.get("false_auto_clear") is not None
+            and expected_random_false_auto_clear > 0
             else None
         )
     return metrics
 
 
 def _amount_rule_score(df: pd.DataFrame) -> np.ndarray:
-    amount = pd.to_numeric(df.get("amount", 0.0), errors="coerce").fillna(0.0).to_numpy()
+    amount = (
+        pd.to_numeric(df.get("amount", 0.0), errors="coerce").fillna(0.0).to_numpy()
+    )
     log_amount = np.log1p(np.clip(amount, 0, None))
     if np.nanmax(log_amount) <= np.nanmin(log_amount):
         return np.full(len(df), 0.5)
-    return (log_amount - np.nanmin(log_amount)) / (np.nanmax(log_amount) - np.nanmin(log_amount))
+    return (log_amount - np.nanmin(log_amount)) / (
+        np.nanmax(log_amount) - np.nanmin(log_amount)
+    )
 
 
 def _source_rule_score(df: pd.DataFrame) -> np.ndarray:
@@ -149,7 +162,14 @@ def _source_rule_score(df: pd.DataFrame) -> np.ndarray:
     amount = pd.to_numeric(df.get("amount", 0.0), errors="coerce").fillna(0.0)
     score = np.full(len(df), 0.10)
     score += src.str.contains("ibm|aml", regex=True).astype(float).to_numpy() * 0.15
-    score += text.str.contains("laundering|fraud|dispute|unauthorized|late|untimely", regex=True).astype(float).to_numpy() * 0.35
+    score += (
+        text.str.contains(
+            "laundering|fraud|dispute|unauthorized|late|untimely", regex=True
+        )
+        .astype(float)
+        .to_numpy()
+        * 0.35
+    )
     score += (amount > amount.quantile(0.90)).astype(float).to_numpy() * 0.20
     return np.clip(score, 0.0, 1.0)
 
@@ -174,7 +194,9 @@ def _md_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
     return "\n".join([header, sep] + body)
 
 
-def _pct_change(new: float | None, old: float | None, lower_is_better: bool = False) -> float | None:
+def _pct_change(
+    new: float | None, old: float | None, lower_is_better: bool = False
+) -> float | None:
     if new is None or old is None or old == 0:
         return None
     if lower_is_better:
@@ -190,7 +212,9 @@ def _point_change(new: float | None, old: float | None) -> float | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--input-csv", default=None)
     parser.add_argument("--max-features", type=int, default=10000)
     parser.add_argument("--review-capacity", type=float, default=0.35)
@@ -201,7 +225,11 @@ def main() -> None:
     if not external_root.exists():
         raise FileNotFoundError(f"External root not found: {external_root}")
 
-    input_csv = Path(args.input_csv) if args.input_csv else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    input_csv = (
+        Path(args.input_csv)
+        if args.input_csv
+        else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    )
     if not input_csv.exists():
         raise FileNotFoundError(f"Common schema input not found: {input_csv}")
 
@@ -224,36 +252,46 @@ def main() -> None:
     rows: list[dict[str, Any]] = []
 
     # Expected random-review baseline for direct reviewer-capacity lift.
-    rows.append({
-        "model": "random_review_expected",
-        "rows": int(len(test)),
-        "positives": int(y_test.sum()),
-        "positive_rate": float(y_test.mean()),
-        "review_capacity": args.review_capacity,
-        "status": "REFERENCE",
-        "roc_auc": None,
-        "pr_auc": float(y_test.mean()),
-        "f2": None,
-        "brier": None,
-        "ece": None,
-        "high_risk_capture": args.review_capacity,
-        "false_auto_clear": 1.0 - args.review_capacity,
-        "review_burden": args.review_capacity,
-        "capture_lift_vs_random": 1.0,
-        "false_auto_clear_reduction_vs_random": 0.0,
-    })
+    rows.append(
+        {
+            "model": "random_review_expected",
+            "rows": int(len(test)),
+            "positives": int(y_test.sum()),
+            "positive_rate": float(y_test.mean()),
+            "review_capacity": args.review_capacity,
+            "status": "REFERENCE",
+            "roc_auc": None,
+            "pr_auc": float(y_test.mean()),
+            "f2": None,
+            "brier": None,
+            "ece": None,
+            "high_risk_capture": args.review_capacity,
+            "false_auto_clear": 1.0 - args.review_capacity,
+            "review_burden": args.review_capacity,
+            "capture_lift_vs_random": 1.0,
+            "false_auto_clear_reduction_vs_random": 0.0,
+        }
+    )
 
     for name, score in [
         ("random_score_baseline", random_score),
         ("amount_rule_baseline", amount_score),
         ("source_rule_baseline", source_rule_score),
     ]:
-        rows.append(_evaluate_score_vector(name, y_test, score, review_capacity=args.review_capacity))
+        rows.append(
+            _evaluate_score_vector(
+                name, y_test, score, review_capacity=args.review_capacity
+            )
+        )
 
     # Train fair final-test baseline and proposed method on the same temporal training split.
     model_specs = {
-        "vanilla_text_logreg": _build_model("vanilla_text_logreg", args.max_features, args.random_state),
-        "hybrid_text_numeric_logreg": _build_model("hybrid_text_numeric_logreg", args.max_features, args.random_state),
+        "vanilla_text_logreg": _build_model(
+            "vanilla_text_logreg", args.max_features, args.random_state
+        ),
+        "hybrid_text_numeric_logreg": _build_model(
+            "hybrid_text_numeric_logreg", args.max_features, args.random_state
+        ),
     }
 
     trained_models: dict[str, Any] = {}
@@ -264,7 +302,9 @@ def main() -> None:
         model.fit(_features(train), _labels(train))
         fit_seconds = time.perf_counter() - t0
         score = _score_model(model, _features(test))
-        metrics = _evaluate_score_vector(name, y_test, score, review_capacity=args.review_capacity)
+        metrics = _evaluate_score_vector(
+            name, y_test, score, review_capacity=args.review_capacity
+        )
         metrics["fit_seconds"] = float(fit_seconds)
         rows.append(metrics)
         trained_models[name] = model
@@ -295,7 +335,9 @@ def main() -> None:
     frontier_rows: list[dict[str, Any]] = []
     score_map = {
         "random_score_baseline": random_score,
-        "vanilla_text_logreg": _score_model(trained_models["vanilla_text_logreg"], _features(test)),
+        "vanilla_text_logreg": _score_model(
+            trained_models["vanilla_text_logreg"], _features(test)
+        ),
         "hybrid_text_numeric_logreg": test_hybrid_score,
         "hybrid_text_numeric_logreg_sigmoid_calibrated": calibrated_score,
     }
@@ -320,32 +362,64 @@ def main() -> None:
 
     claim_summary = {
         "hybrid_vs_vanilla": {
-            "pr_auc_pct_change": _pct_change(hybrid.get("pr_auc"), vanilla.get("pr_auc")),
-            "roc_auc_pct_change": _pct_change(hybrid.get("roc_auc"), vanilla.get("roc_auc")),
+            "pr_auc_pct_change": _pct_change(
+                hybrid.get("pr_auc"), vanilla.get("pr_auc")
+            ),
+            "roc_auc_pct_change": _pct_change(
+                hybrid.get("roc_auc"), vanilla.get("roc_auc")
+            ),
             "f2_pct_change": _pct_change(hybrid.get("f2"), vanilla.get("f2")),
-            "brier_pct_reduction": _pct_change(hybrid.get("brier"), vanilla.get("brier"), lower_is_better=True),
-            "ece_pct_reduction": _pct_change(hybrid.get("ece"), vanilla.get("ece"), lower_is_better=True),
-            "high_risk_capture_point_change": _point_change(hybrid.get("high_risk_capture"), vanilla.get("high_risk_capture")),
-            "false_auto_clear_pct_reduction": _pct_change(hybrid.get("false_auto_clear"), vanilla.get("false_auto_clear"), lower_is_better=True),
+            "brier_pct_reduction": _pct_change(
+                hybrid.get("brier"), vanilla.get("brier"), lower_is_better=True
+            ),
+            "ece_pct_reduction": _pct_change(
+                hybrid.get("ece"), vanilla.get("ece"), lower_is_better=True
+            ),
+            "high_risk_capture_point_change": _point_change(
+                hybrid.get("high_risk_capture"), vanilla.get("high_risk_capture")
+            ),
+            "false_auto_clear_pct_reduction": _pct_change(
+                hybrid.get("false_auto_clear"),
+                vanilla.get("false_auto_clear"),
+                lower_is_better=True,
+            ),
         },
         "calibrated_hybrid_vs_uncalibrated_hybrid": {
-            "brier_pct_reduction": _pct_change(calibrated.get("brier"), hybrid.get("brier"), lower_is_better=True),
-            "ece_pct_reduction": _pct_change(calibrated.get("ece"), hybrid.get("ece"), lower_is_better=True),
-            "high_risk_capture_point_change": _point_change(calibrated.get("high_risk_capture"), hybrid.get("high_risk_capture")),
-            "false_auto_clear_pct_reduction": _pct_change(calibrated.get("false_auto_clear"), hybrid.get("false_auto_clear"), lower_is_better=True),
+            "brier_pct_reduction": _pct_change(
+                calibrated.get("brier"), hybrid.get("brier"), lower_is_better=True
+            ),
+            "ece_pct_reduction": _pct_change(
+                calibrated.get("ece"), hybrid.get("ece"), lower_is_better=True
+            ),
+            "high_risk_capture_point_change": _point_change(
+                calibrated.get("high_risk_capture"), hybrid.get("high_risk_capture")
+            ),
+            "false_auto_clear_pct_reduction": _pct_change(
+                calibrated.get("false_auto_clear"),
+                hybrid.get("false_auto_clear"),
+                lower_is_better=True,
+            ),
         },
         "hybrid_vs_random_review": {
             "capture_lift_vs_random": hybrid.get("capture_lift_vs_random"),
-            "false_auto_clear_reduction_vs_random": hybrid.get("false_auto_clear_reduction_vs_random"),
-            "random_expected_high_risk_capture": random_expected.get("high_risk_capture"),
+            "false_auto_clear_reduction_vs_random": hybrid.get(
+                "false_auto_clear_reduction_vs_random"
+            ),
+            "random_expected_high_risk_capture": random_expected.get(
+                "high_risk_capture"
+            ),
             "hybrid_high_risk_capture": hybrid.get("high_risk_capture"),
             "random_expected_false_auto_clear": random_expected.get("false_auto_clear"),
             "hybrid_false_auto_clear": hybrid.get("false_auto_clear"),
         },
         "calibrated_hybrid_vs_random_review": {
             "capture_lift_vs_random": calibrated.get("capture_lift_vs_random"),
-            "false_auto_clear_reduction_vs_random": calibrated.get("false_auto_clear_reduction_vs_random"),
-            "random_expected_high_risk_capture": random_expected.get("high_risk_capture"),
+            "false_auto_clear_reduction_vs_random": calibrated.get(
+                "false_auto_clear_reduction_vs_random"
+            ),
+            "random_expected_high_risk_capture": random_expected.get(
+                "high_risk_capture"
+            ),
             "calibrated_high_risk_capture": calibrated.get("high_risk_capture"),
             "random_expected_false_auto_clear": random_expected.get("false_auto_clear"),
             "calibrated_false_auto_clear": calibrated.get("false_auto_clear"),
@@ -364,8 +438,13 @@ def main() -> None:
         "claim_boundary": "External public-data final-test comparison only. No proprietary bank data, production payment logs, or regulatory certification.",
         "input_csv": str(input_csv),
         "rows": int(len(df)),
-        "source_counts": {str(k): int(v) for k, v in df["source_dataset"].value_counts().to_dict().items()},
-        "label_counts": {str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()},
+        "source_counts": {
+            str(k): int(v)
+            for k, v in df["source_dataset"].value_counts().to_dict().items()
+        },
+        "label_counts": {
+            str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()
+        },
         "temporal_split": {
             "train_rows": int(len(train)),
             "validation_rows": int(len(val)),
@@ -390,31 +469,50 @@ def main() -> None:
     )
 
     (registry_dir / "baseline_claim_model_versions.json").write_text(
-        json.dumps({
-            "created_at_utc": datetime.now(timezone.utc).isoformat(),
-            "claim_boundary": result["claim_boundary"],
-            "external_output_dir": str(out_dir),
-            "models_dir": str(models_dir),
-            "comparison_csv": str(comparison_csv),
-            "frontier_csv": str(frontier_csv),
-        }, indent=2),
+        json.dumps(
+            {
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                "claim_boundary": result["claim_boundary"],
+                "external_output_dir": str(out_dir),
+                "models_dir": str(models_dir),
+                "comparison_csv": str(comparison_csv),
+                "frontier_csv": str(frontier_csv),
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
     display_cols = [
-        "model", "pr_auc", "roc_auc", "f2", "brier", "ece",
-        "high_risk_capture", "false_auto_clear", "capture_lift_vs_random",
-        "false_auto_clear_reduction_vs_random"
+        "model",
+        "pr_auc",
+        "roc_auc",
+        "f2",
+        "brier",
+        "ece",
+        "high_risk_capture",
+        "false_auto_clear",
+        "capture_lift_vs_random",
+        "false_auto_clear_reduction_vs_random",
     ]
     frontier_cols = [
-        "model", "capacity", "pr_auc", "roc_auc", "brier", "ece",
-        "high_risk_capture", "false_auto_clear", "capture_lift_vs_random"
+        "model",
+        "capacity",
+        "pr_auc",
+        "roc_auc",
+        "brier",
+        "ece",
+        "high_risk_capture",
+        "false_auto_clear",
+        "capture_lift_vs_random",
     ]
 
     md = []
     md.append("# Baseline vs Method Claim Report\n")
     md.append("## Claim boundary\n")
-    md.append("This report compares final-test baselines and reliability-enhanced methods using local external public-data samples only. It does not use proprietary bank data, production payment logs, real customer account data, or regulatory certification.\n")
+    md.append(
+        "This report compares final-test baselines and reliability-enhanced methods using local external public-data samples only. It does not use proprietary bank data, production payment logs, real customer account data, or regulatory certification.\n"
+    )
     md.append("## Dataset\n")
     md.append(f"- Input common schema: `{input_csv}`\n")
     md.append(f"- Rows: `{len(df)}`\n")
@@ -430,8 +528,12 @@ def main() -> None:
     md.append("```json\n" + json.dumps(claim_summary, indent=2) + "\n```\n")
     md.append("## How to use in resume\n")
     md.append("- Use only claims supported by this report.\n")
-    md.append("- Prefer `external public-data final-test comparison` or `external public-data operational backtest` wording.\n")
-    md.append("- Do not claim proprietary bank data, production deployment, JPMC data, or regulatory certification.\n")
+    md.append(
+        "- Prefer `external public-data final-test comparison` or `external public-data operational backtest` wording.\n"
+    )
+    md.append(
+        "- Do not claim proprietary bank data, production deployment, JPMC data, or regulatory certification.\n"
+    )
     md.append("## External artifacts\n")
     md.append(f"- Comparison CSV: `{comparison_csv}`\n")
     md.append(f"- Review-capacity frontier CSV: `{frontier_csv}`\n")
@@ -442,15 +544,20 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    print(json.dumps({
-        "status": "PASS",
-        "rows": int(len(df)),
-        "test_rows": int(len(test)),
-        "test_positives": int(y_test.sum()),
-        "report": "reports/25_baseline_vs_method_claim_report.md",
-        "claim_summary": claim_summary,
-        "external_output_dir": str(out_dir),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "rows": int(len(df)),
+                "test_rows": int(len(test)),
+                "test_positives": int(y_test.sum()),
+                "report": "reports/25_baseline_vs_method_claim_report.md",
+                "claim_summary": claim_summary,
+                "external_output_dir": str(out_dir),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

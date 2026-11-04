@@ -10,13 +10,20 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, fbeta_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from src.scripts.run_source_specific_aml_behavior_experiment import (
     BehaviorFeatureMapper,
+    _behavior_features,
     _best_threshold,
     _build_behavior_hgb,
     _build_text_model,
@@ -33,9 +40,7 @@ from src.scripts.run_source_specific_aml_behavior_experiment import (
     _standardize_ibm_raw,
     _text_features,
     _write_md_table,
-    _behavior_features,
 )
-
 
 REVIEW_CAPACITIES = [0.05, 0.10, 0.20, 0.35, 0.50]
 
@@ -71,11 +76,15 @@ def _ece(y: np.ndarray, score: np.ndarray, n_bins: int = 10) -> float:
         else:
             mask = (score >= lo) & (score < hi)
         if np.any(mask):
-            total += float(mask.mean()) * abs(float(y[mask].mean()) - float(score[mask].mean()))
+            total += float(mask.mean()) * abs(
+                float(y[mask].mean()) - float(score[mask].mean())
+            )
     return float(total)
 
 
-def _metrics_at_threshold(y: np.ndarray, score: np.ndarray, review_capacity: float, threshold: float) -> dict[str, Any]:
+def _metrics_at_threshold(
+    y: np.ndarray, score: np.ndarray, review_capacity: float, threshold: float
+) -> dict[str, Any]:
     y = np.asarray(y).astype(int)
     score = np.clip(np.asarray(score, dtype=float), 0.0, 1.0)
     pred = (score >= threshold).astype(int)
@@ -101,8 +110,13 @@ def _metrics_at_threshold(y: np.ndarray, score: np.ndarray, review_capacity: flo
         "high_risk_capture": float(y[review].sum() / positives),
         "false_auto_clear": float(y[~review].sum() / positives),
         "review_capacity": float(review_capacity),
-        "capture_lift_vs_random": float(y[review].sum() / positives / review_capacity) if review_capacity > 0 else None,
-        "false_auto_clear_reduction_vs_random": ((1.0 - review_capacity) - float(y[~review].sum() / positives)) / (1.0 - review_capacity)
+        "capture_lift_vs_random": float(y[review].sum() / positives / review_capacity)
+        if review_capacity > 0
+        else None,
+        "false_auto_clear_reduction_vs_random": (
+            (1.0 - review_capacity) - float(y[~review].sum() / positives)
+        )
+        / (1.0 - review_capacity)
         if review_capacity < 1.0
         else None,
     }
@@ -118,7 +132,9 @@ def _objective(m: dict[str, Any]) -> float:
     )
 
 
-def _pct_change(new: float | None, old: float | None, lower_is_better: bool = False) -> float | None:
+def _pct_change(
+    new: float | None, old: float | None, lower_is_better: bool = False
+) -> float | None:
     if new is None or old is None or old == 0:
         return None
     return float((old - new) / old if lower_is_better else (new - old) / old)
@@ -128,7 +144,7 @@ class SourceMinMaxAligner:
     def __init__(self) -> None:
         self.params: dict[str, tuple[float, float]] = {}
 
-    def fit(self, sources: pd.Series, score: np.ndarray) -> "SourceMinMaxAligner":
+    def fit(self, sources: pd.Series, score: np.ndarray) -> SourceMinMaxAligner:
         score = np.asarray(score, dtype=float)
         for source in sorted(pd.Series(sources).astype(str).unique()):
             mask = pd.Series(sources).astype(str).to_numpy() == source
@@ -145,7 +161,9 @@ class SourceMinMaxAligner:
         score = np.asarray(score, dtype=float)
         for source in np.unique(src_values):
             mask = src_values == source
-            lo, hi = self.params.get(str(source), (float(np.nanmin(score)), float(np.nanmax(score))))
+            lo, hi = self.params.get(
+                str(source), (float(np.nanmin(score)), float(np.nanmax(score)))
+            )
             if hi <= lo:
                 out[mask] = 0.5
             else:
@@ -157,7 +175,7 @@ class SourcePercentileAligner:
     def __init__(self) -> None:
         self.sorted_scores: dict[str, np.ndarray] = {}
 
-    def fit(self, sources: pd.Series, score: np.ndarray) -> "SourcePercentileAligner":
+    def fit(self, sources: pd.Series, score: np.ndarray) -> SourcePercentileAligner:
         src_values = pd.Series(sources).astype(str).to_numpy()
         score = np.asarray(score, dtype=float)
         for source in np.unique(src_values):
@@ -175,7 +193,9 @@ class SourcePercentileAligner:
             if ref is None or len(ref) == 0:
                 out[mask] = 0.5
             else:
-                out[mask] = np.searchsorted(ref, score[mask], side="right") / max(1, len(ref))
+                out[mask] = np.searchsorted(ref, score[mask], side="right") / max(
+                    1, len(ref)
+                )
         return np.clip(out, 0.0, 1.0)
 
 
@@ -185,7 +205,7 @@ class SigmoidScoreCalibrator:
         self.fitted = False
         self.constant: float | None = None
 
-    def fit(self, score: np.ndarray, y: np.ndarray) -> "SigmoidScoreCalibrator":
+    def fit(self, score: np.ndarray, y: np.ndarray) -> SigmoidScoreCalibrator:
         y = np.asarray(y).astype(int)
         if len(np.unique(y)) < 2:
             self.constant = float(y.mean()) if len(y) else 0.0
@@ -200,7 +220,9 @@ class SigmoidScoreCalibrator:
 
     def transform(self, score: np.ndarray) -> np.ndarray:
         if not self.fitted:
-            return np.full(len(score), 0.0 if self.constant is None else self.constant, dtype=float)
+            return np.full(
+                len(score), 0.0 if self.constant is None else self.constant, dtype=float
+            )
         eps = 1e-6
         s = np.clip(np.asarray(score, dtype=float), eps, 1.0 - eps)
         x = np.log(s / (1.0 - s)).reshape(-1, 1)
@@ -213,7 +235,9 @@ class SourceCalibrator:
         self.models: dict[str, Any] = {}
         self.constants: dict[str, float] = {}
 
-    def fit(self, sources: pd.Series, score: np.ndarray, y: np.ndarray) -> "SourceCalibrator":
+    def fit(
+        self, sources: pd.Series, score: np.ndarray, y: np.ndarray
+    ) -> SourceCalibrator:
         src_values = pd.Series(sources).astype(str).to_numpy()
         score = np.asarray(score, dtype=float)
         y = np.asarray(y).astype(int)
@@ -254,13 +278,22 @@ class SourceCalibrator:
 
 def _source_group(df: pd.DataFrame) -> pd.Series:
     source = df["source_dataset"].astype(str).str.lower()
-    return pd.Series(np.where(source.str.contains("ibm|aml", regex=True, na=False), "ibm_aml", "cfpb"), index=df.index)
+    return pd.Series(
+        np.where(
+            source.str.contains("ibm|aml", regex=True, na=False), "ibm_aml", "cfpb"
+        ),
+        index=df.index,
+    )
 
 
-def _fit_cfpb_text_model(cfpb_train: pd.DataFrame, max_features: int, random_state: int) -> Any | None:
+def _fit_cfpb_text_model(
+    cfpb_train: pd.DataFrame, max_features: int, random_state: int
+) -> Any | None:
     if len(cfpb_train) == 0:
         return None
-    return _fit_if_two_classes(_build_text_model(max_features, random_state), cfpb_train, _text_features)
+    return _fit_if_two_classes(
+        _build_text_model(max_features, random_state), cfpb_train, _text_features
+    )
 
 
 def _score_cfpb(model: Any | None, train: pd.DataFrame, df: pd.DataFrame) -> np.ndarray:
@@ -282,13 +315,17 @@ def _make_source_router_scores(
     is_ibm = source.str.contains("ibm|aml", regex=True, na=False).to_numpy()
     is_cfpb = source.str.contains("cfpb", regex=True, na=False).to_numpy()
     if is_ibm.any():
-        score[is_ibm] = _model_score(ibm_behavior_hgb, _behavior_features(df.loc[is_ibm]))
+        score[is_ibm] = _model_score(
+            ibm_behavior_hgb, _behavior_features(df.loc[is_ibm])
+        )
     if is_cfpb.any():
         score[is_cfpb] = _score_cfpb(cfpb_model, cfpb_train, df.loc[is_cfpb])
     return np.clip(score, 0.0, 1.0)
 
 
-def _select_threshold_by_validation(y_val: np.ndarray, val_score: np.ndarray, n_thresholds: int) -> float:
+def _select_threshold_by_validation(
+    y_val: np.ndarray, val_score: np.ndarray, n_thresholds: int
+) -> float:
     return float(_best_threshold(y_val, np.clip(val_score, 0.0, 1.0), n_thresholds))
 
 
@@ -320,25 +357,41 @@ def _val_eval_for_selection(
 ) -> dict[str, Any]:
     threshold = _select_threshold_by_validation(y_val, val_score, n_thresholds)
     row = _metrics_at_threshold(y_val, val_score, review_capacity, threshold)
-    row.update({"model": name, "selected_threshold": threshold, "selection_objective": _objective(row)})
+    row.update(
+        {
+            "model": name,
+            "selected_threshold": threshold,
+            "selection_objective": _objective(row),
+        }
+    )
     if extra:
         row.update(extra)
     return row
 
 
-def _passes_constraints(candidate: dict[str, Any], baseline: dict[str, Any]) -> tuple[bool, list[str]]:
+def _passes_constraints(
+    candidate: dict[str, Any], baseline: dict[str, Any]
+) -> tuple[bool, list[str]]:
     checks = {
         "pr_auc": (candidate.get("pr_auc") or 0.0) >= (baseline.get("pr_auc") or 0.0),
         "f2": (candidate.get("f2") or 0.0) >= (baseline.get("f2") or 0.0) * 0.98,
         "brier": (candidate.get("brier") or 999.0) <= (baseline.get("brier") or 999.0),
-        "high_risk_capture": (candidate.get("high_risk_capture") or 0.0) >= (baseline.get("high_risk_capture") or 0.0),
-        "false_auto_clear": (candidate.get("false_auto_clear") or 999.0) <= (baseline.get("false_auto_clear") or 999.0),
+        "high_risk_capture": (candidate.get("high_risk_capture") or 0.0)
+        >= (baseline.get("high_risk_capture") or 0.0),
+        "false_auto_clear": (candidate.get("false_auto_clear") or 999.0)
+        <= (baseline.get("false_auto_clear") or 999.0),
     }
     failed = [k for k, ok in checks.items() if not ok]
     return all(checks.values()), failed
 
 
-def _source_slice_eval(model_name: str, df: pd.DataFrame, score: np.ndarray, review_capacity: float, threshold: float) -> list[dict[str, Any]]:
+def _source_slice_eval(
+    model_name: str,
+    df: pd.DataFrame,
+    score: np.ndarray,
+    review_capacity: float,
+    threshold: float,
+) -> list[dict[str, Any]]:
     temp = df.copy()
     temp["_score"] = np.clip(np.asarray(score, dtype=float), 0.0, 1.0)
     source = temp["source_dataset"].astype(str).str.lower()
@@ -351,29 +404,53 @@ def _source_slice_eval(model_name: str, df: pd.DataFrame, score: np.ndarray, rev
     for slice_name, frame in slices.items():
         if len(frame) == 0:
             continue
-        row = _metrics_at_threshold(frame["risk_label"].astype(int).to_numpy(), frame["_score"].to_numpy(), review_capacity, threshold)
+        row = _metrics_at_threshold(
+            frame["risk_label"].astype(int).to_numpy(),
+            frame["_score"].to_numpy(),
+            review_capacity,
+            threshold,
+        )
         row.update({"model": model_name, "slice": slice_name})
         rows.append(row)
     return rows
 
 
-def _claim_summary(best_test: dict[str, Any], baseline_test: dict[str, Any]) -> dict[str, Any]:
+def _claim_summary(
+    best_test: dict[str, Any], baseline_test: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "best_aligned_vs_combined_text_baseline": {
-            "pr_auc_pct_change": _pct_change(best_test.get("pr_auc"), baseline_test.get("pr_auc")),
-            "roc_auc_pct_change": _pct_change(best_test.get("roc_auc"), baseline_test.get("roc_auc")),
+            "pr_auc_pct_change": _pct_change(
+                best_test.get("pr_auc"), baseline_test.get("pr_auc")
+            ),
+            "roc_auc_pct_change": _pct_change(
+                best_test.get("roc_auc"), baseline_test.get("roc_auc")
+            ),
             "f2_pct_change": _pct_change(best_test.get("f2"), baseline_test.get("f2")),
-            "brier_pct_reduction": _pct_change(best_test.get("brier"), baseline_test.get("brier"), lower_is_better=True),
-            "ece_pct_reduction": _pct_change(best_test.get("ece"), baseline_test.get("ece"), lower_is_better=True),
-            "high_risk_capture_point_change": (best_test.get("high_risk_capture") or 0.0) - (baseline_test.get("high_risk_capture") or 0.0),
-            "false_auto_clear_pct_reduction": _pct_change(best_test.get("false_auto_clear"), baseline_test.get("false_auto_clear"), lower_is_better=True),
+            "brier_pct_reduction": _pct_change(
+                best_test.get("brier"), baseline_test.get("brier"), lower_is_better=True
+            ),
+            "ece_pct_reduction": _pct_change(
+                best_test.get("ece"), baseline_test.get("ece"), lower_is_better=True
+            ),
+            "high_risk_capture_point_change": (
+                best_test.get("high_risk_capture") or 0.0
+            )
+            - (baseline_test.get("high_risk_capture") or 0.0),
+            "false_auto_clear_pct_reduction": _pct_change(
+                best_test.get("false_auto_clear"),
+                baseline_test.get("false_auto_clear"),
+                lower_is_better=True,
+            ),
         }
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--common-csv", default=None)
     parser.add_argument("--max-ibm-rows", type=int, default=500000)
     parser.add_argument("--chunk-size", type=int, default=100000)
@@ -388,7 +465,11 @@ def main() -> None:
     if not external_root.exists():
         raise FileNotFoundError(f"External root not found: {external_root}")
 
-    common_csv = Path(args.common_csv) if args.common_csv else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    common_csv = (
+        Path(args.common_csv)
+        if args.common_csv
+        else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    )
     if not common_csv.exists():
         raise FileNotFoundError(f"Common schema CSV not found: {common_csv}")
 
@@ -400,7 +481,9 @@ def main() -> None:
 
     # Build the same raw IBM + CFPB temporal split used by the source-specific experiment.
     ibm_path = _find_ibm_file(external_root)
-    raw_ibm = _load_ibm_raw_sample(ibm_path, args.max_ibm_rows, args.chunk_size, args.max_chunks, args.random_state)
+    raw_ibm = _load_ibm_raw_sample(
+        ibm_path, args.max_ibm_rows, args.chunk_size, args.max_chunks, args.random_state
+    )
     ibm_df = _standardize_ibm_raw(raw_ibm)
     ibm_train_raw, ibm_val_raw, ibm_test_raw = _split_df(ibm_df)
 
@@ -415,9 +498,21 @@ def main() -> None:
     else:
         cfpb_train = cfpb_val = cfpb_test = pd.DataFrame()
 
-    combined_train = pd.concat([cfpb_train, ibm_train], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
-    combined_val = pd.concat([cfpb_val, ibm_val], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
-    combined_test = pd.concat([cfpb_test, ibm_test], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
+    combined_train = (
+        pd.concat([cfpb_train, ibm_train], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
+    combined_val = (
+        pd.concat([cfpb_val, ibm_val], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
+    combined_test = (
+        pd.concat([cfpb_test, ibm_test], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
 
     y_val = combined_val["risk_label"].astype(int).to_numpy()
     y_test = combined_test["risk_label"].astype(int).to_numpy()
@@ -426,22 +521,32 @@ def main() -> None:
 
     # Strong combined text baseline.
     combined_text = _build_text_model(args.max_features, args.random_state)
-    combined_text.fit(_text_features(combined_train), combined_train["risk_label"].astype(int))
+    combined_text.fit(
+        _text_features(combined_train), combined_train["risk_label"].astype(int)
+    )
     baseline_val_score = _model_score(combined_text, _text_features(combined_val))
     baseline_test_score = _model_score(combined_text, _text_features(combined_test))
-    joblib.dump(combined_text, models_dir / f"{stamp}_combined_text_logreg_baseline.joblib")
+    joblib.dump(
+        combined_text, models_dir / f"{stamp}_combined_text_logreg_baseline.joblib"
+    )
 
     # Source models.
     ibm_behavior_hgb = _build_behavior_hgb(args.random_state)
-    ibm_behavior_hgb.fit(_behavior_features(ibm_train), ibm_train["risk_label"].astype(int))
+    ibm_behavior_hgb.fit(
+        _behavior_features(ibm_train), ibm_train["risk_label"].astype(int)
+    )
     joblib.dump(ibm_behavior_hgb, models_dir / f"{stamp}_ibm_behavior_hgb.joblib")
 
     cfpb_model = _fit_cfpb_text_model(cfpb_train, args.max_features, args.random_state)
     if cfpb_model is not None:
         joblib.dump(cfpb_model, models_dir / f"{stamp}_cfpb_text_logreg.joblib")
 
-    raw_router_val_score = _make_source_router_scores(combined_val, ibm_behavior_hgb, cfpb_model, cfpb_train)
-    raw_router_test_score = _make_source_router_scores(combined_test, ibm_behavior_hgb, cfpb_model, cfpb_train)
+    raw_router_val_score = _make_source_router_scores(
+        combined_val, ibm_behavior_hgb, cfpb_model, cfpb_train
+    )
+    raw_router_test_score = _make_source_router_scores(
+        combined_test, ibm_behavior_hgb, cfpb_model, cfpb_train
+    )
 
     # Source-wise score alignment variants. Fit all transforms on validation only, then apply to test.
     minmax = SourceMinMaxAligner().fit(source_val, raw_router_val_score)
@@ -492,9 +597,33 @@ def main() -> None:
     )
 
     for name, (val_score, test_score) in base_candidates.items():
-        extra = {"family": "base_candidate", "alpha_baseline": None, "source_variant": name}
-        validation_rows.append(_val_eval_for_selection(name, y_val, val_score, args.review_capacity, args.n_thresholds, extra=extra))
-        test_rows.append(_candidate_eval(name, y_val, val_score, y_test, test_score, args.review_capacity, args.n_thresholds, extra=extra))
+        extra = {
+            "family": "base_candidate",
+            "alpha_baseline": None,
+            "source_variant": name,
+        }
+        validation_rows.append(
+            _val_eval_for_selection(
+                name,
+                y_val,
+                val_score,
+                args.review_capacity,
+                args.n_thresholds,
+                extra=extra,
+            )
+        )
+        test_rows.append(
+            _candidate_eval(
+                name,
+                y_val,
+                val_score,
+                y_test,
+                test_score,
+                args.review_capacity,
+                args.n_thresholds,
+                extra=extra,
+            )
+        )
 
     blend_source_variants = {
         "raw_source_router": (raw_router_val_score, raw_router_test_score),
@@ -511,18 +640,42 @@ def main() -> None:
     for source_name, (src_val, src_test) in blend_source_variants.items():
         for alpha in np.linspace(0.0, 1.0, 21):
             alpha = float(alpha)
-            name = f"blend_baseline_{alpha:.2f}_plus_{source_name}_{1-alpha:.2f}"
-            val_score = np.clip(alpha * baseline_val_score + (1.0 - alpha) * src_val, 0.0, 1.0)
-            test_score = np.clip(alpha * baseline_test_score + (1.0 - alpha) * src_test, 0.0, 1.0)
-            extra = {"family": "blend", "alpha_baseline": alpha, "source_variant": source_name}
-            val_row = _val_eval_for_selection(name, y_val, val_score, args.review_capacity, args.n_thresholds, extra=extra)
+            name = f"blend_baseline_{alpha:.2f}_plus_{source_name}_{1 - alpha:.2f}"
+            val_score = np.clip(
+                alpha * baseline_val_score + (1.0 - alpha) * src_val, 0.0, 1.0
+            )
+            test_score = np.clip(
+                alpha * baseline_test_score + (1.0 - alpha) * src_test, 0.0, 1.0
+            )
+            extra = {
+                "family": "blend",
+                "alpha_baseline": alpha,
+                "source_variant": source_name,
+            }
+            val_row = _val_eval_for_selection(
+                name,
+                y_val,
+                val_score,
+                args.review_capacity,
+                args.n_thresholds,
+                extra=extra,
+            )
             is_eligible, failed = _passes_constraints(val_row, baseline_val_row)
             val_row["eligible_on_validation"] = bool(is_eligible)
             val_row["failed_validation_constraints"] = ",".join(failed)
             blend_validation_rows.append(val_row)
             blend_scores_by_name[name] = (val_score, test_score)
 
-            test_row = _candidate_eval(name, y_val, val_score, y_test, test_score, args.review_capacity, args.n_thresholds, extra=extra)
+            test_row = _candidate_eval(
+                name,
+                y_val,
+                val_score,
+                y_test,
+                test_score,
+                args.review_capacity,
+                args.n_thresholds,
+                extra=extra,
+            )
             blend_test_rows_by_name[name] = test_row
 
     eligible = [r for r in blend_validation_rows if r.get("eligible_on_validation")]
@@ -531,12 +684,16 @@ def main() -> None:
         selection_status = "PASS_ELIGIBLE_BLEND_FOUND"
     else:
         selected_val_row = max(blend_validation_rows, key=_objective)
-        selection_status = "NO_BLEND_MET_ALL_VALIDATION_CONSTRAINTS_USE_BEST_OBJECTIVE_FOR_DIAGNOSTICS"
+        selection_status = (
+            "NO_BLEND_MET_ALL_VALIDATION_CONSTRAINTS_USE_BEST_OBJECTIVE_FOR_DIAGNOSTICS"
+        )
 
     selected_name = selected_val_row["model"]
     selected_val_score, selected_test_score = blend_scores_by_name[selected_name]
     selected_test_row = blend_test_rows_by_name[selected_name]
-    selected_test_constraints_pass, selected_test_failed = _passes_constraints(selected_test_row, baseline_test_row)
+    selected_test_constraints_pass, selected_test_failed = _passes_constraints(
+        selected_test_row, baseline_test_row
+    )
     selected_test_row["test_constraints_pass"] = bool(selected_test_constraints_pass)
     selected_test_row["failed_test_constraints"] = ",".join(selected_test_failed)
     selected_test_row["selection_status"] = selection_status
@@ -544,14 +701,36 @@ def main() -> None:
     validation_rows.extend(blend_validation_rows)
     test_rows.extend(blend_test_rows_by_name.values())
 
-    pd.DataFrame(validation_rows).to_csv(output_dir / "score_alignment_validation_results.csv", index=False)
-    pd.DataFrame(test_rows).to_csv(output_dir / "score_alignment_test_results.csv", index=False)
+    pd.DataFrame(validation_rows).to_csv(
+        output_dir / "score_alignment_validation_results.csv", index=False
+    )
+    pd.DataFrame(test_rows).to_csv(
+        output_dir / "score_alignment_test_results.csv", index=False
+    )
 
     selected_threshold = float(selected_test_row["selected_threshold"])
     slice_rows = []
-    slice_rows.extend(_source_slice_eval("combined_text_logreg_baseline", combined_test, baseline_test_score, args.review_capacity, baseline_test_row["selected_threshold"]))
-    slice_rows.extend(_source_slice_eval(selected_name, combined_test, selected_test_score, args.review_capacity, selected_threshold))
-    pd.DataFrame(slice_rows).to_csv(output_dir / "score_alignment_source_slice_results.csv", index=False)
+    slice_rows.extend(
+        _source_slice_eval(
+            "combined_text_logreg_baseline",
+            combined_test,
+            baseline_test_score,
+            args.review_capacity,
+            baseline_test_row["selected_threshold"],
+        )
+    )
+    slice_rows.extend(
+        _source_slice_eval(
+            selected_name,
+            combined_test,
+            selected_test_score,
+            args.review_capacity,
+            selected_threshold,
+        )
+    )
+    pd.DataFrame(slice_rows).to_csv(
+        output_dir / "score_alignment_source_slice_results.csv", index=False
+    )
 
     claim_summary = _claim_summary(selected_test_row, baseline_test_row)
 
@@ -598,13 +777,21 @@ def main() -> None:
         "external_artifacts": {
             "output_dir": str(output_dir),
             "models_dir": str(models_dir),
-            "score_alignment_validation_results": str(output_dir / "score_alignment_validation_results.csv"),
-            "score_alignment_test_results": str(output_dir / "score_alignment_test_results.csv"),
-            "score_alignment_source_slice_results": str(output_dir / "score_alignment_source_slice_results.csv"),
+            "score_alignment_validation_results": str(
+                output_dir / "score_alignment_validation_results.csv"
+            ),
+            "score_alignment_test_results": str(
+                output_dir / "score_alignment_test_results.csv"
+            ),
+            "score_alignment_source_slice_results": str(
+                output_dir / "score_alignment_source_slice_results.csv"
+            ),
         },
     }
 
-    (reports_dir / "score_alignment_blend_metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (reports_dir / "score_alignment_blend_metrics.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
     columns = [
         "model",
@@ -645,7 +832,19 @@ def main() -> None:
     md.append("## Top test candidates by objective\n")
     md.append(_write_md_table(top_test_rows, columns))
     md.append("\n## Source-slice comparison\n")
-    slice_cols = ["model", "slice", "rows", "positives", "pr_auc", "roc_auc", "f2", "brier", "ece", "high_risk_capture", "false_auto_clear"]
+    slice_cols = [
+        "model",
+        "slice",
+        "rows",
+        "positives",
+        "pr_auc",
+        "roc_auc",
+        "f2",
+        "brier",
+        "ece",
+        "high_risk_capture",
+        "false_auto_clear",
+    ]
     md.append(_write_md_table(slice_rows, slice_cols))
     md.append("\n## Claim summary\n")
     md.append("```json\n" + json.dumps(claim_summary, indent=2) + "\n```\n")
@@ -659,15 +858,22 @@ def main() -> None:
     for key, value in result["external_artifacts"].items():
         md.append(f"- {key}: `{value}`")
 
-    (reports_dir / "28_score_alignment_blend_experiment.md").write_text("\n".join(md), encoding="utf-8")
+    (reports_dir / "28_score_alignment_blend_experiment.md").write_text(
+        "\n".join(md), encoding="utf-8"
+    )
 
-    claims_md = ["# Score Alignment Blend Resume Claims\n", "## Use only if consistent with latest metrics\n"]
+    claims_md = [
+        "# Score Alignment Blend Resume Claims\n",
+        "## Use only if consistent with latest metrics\n",
+    ]
     for claim in resume_safe_claims:
         claims_md.append(f"- {claim}")
     claims_md.append("\n## Do not use\n")
     for claim in claims_not_to_use:
         claims_md.append(f"- {claim}")
-    (reports_dir / "28_score_alignment_blend_resume_claims.md").write_text("\n".join(claims_md), encoding="utf-8")
+    (reports_dir / "28_score_alignment_blend_resume_claims.md").write_text(
+        "\n".join(claims_md), encoding="utf-8"
+    )
 
     print(
         json.dumps(

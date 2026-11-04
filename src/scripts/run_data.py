@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from src.utils import ensure_dirs
+from src.data.common_schema import save_common_cases
+from src.data.generate_iso20022 import save_iso20022
 from src.data.ingest_cfpb import save_cfpb_sample
 from src.data.ingest_fraud import save_fraud_sample
-from src.data.generate_iso20022 import save_iso20022
-from src.data.common_schema import save_common_cases
 from src.data.quality_gates import write_data_inventory
 from src.data.spark_feature_pipeline import run_spark_or_pandas_pipeline
+from src.utils import ensure_dirs
 
 
 def main() -> None:

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -11,7 +11,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -28,8 +27,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.data.adapters.cfpb_full_adapter import standardize_cfpb
-from src.scripts.run_external_validation import _find_ibm_transaction_file, _standardize_ibm_chunked
-
+from src.scripts.run_external_validation import (
+    _find_ibm_transaction_file,
+    _standardize_ibm_chunked,
+)
 
 REVIEW_CAPACITIES = [0.05, 0.10, 0.20, 0.35, 0.50]
 
@@ -97,7 +98,15 @@ def _find_or_build_external_common_schema(
 
 def _prepare_operational_frame(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
-    required = ["case_id", "source_dataset", "event_time", "case_type", "text", "risk_label", "route_label"]
+    required = [
+        "case_id",
+        "source_dataset",
+        "event_time",
+        "case_type",
+        "text",
+        "risk_label",
+        "route_label",
+    ]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Input common schema missing required columns: {missing}")
@@ -107,7 +116,12 @@ def _prepare_operational_frame(path: Path) -> pd.DataFrame:
     work = work.drop_duplicates(subset=["case_id"]).copy()
 
     work["text"] = work["text"].fillna("").astype(str)
-    work["risk_label"] = pd.to_numeric(work["risk_label"], errors="coerce").fillna(0).astype(int).clip(0, 1)
+    work["risk_label"] = (
+        pd.to_numeric(work["risk_label"], errors="coerce")
+        .fillna(0)
+        .astype(int)
+        .clip(0, 1)
+    )
     work["amount"] = pd.to_numeric(work.get("amount", 0.0), errors="coerce").fillna(0.0)
     work["source_dataset"] = work["source_dataset"].fillna("unknown").astype(str)
     work["case_type"] = work["case_type"].fillna("unknown").astype(str)
@@ -133,13 +147,21 @@ def _prepare_operational_frame(path: Path) -> pd.DataFrame:
 
     work["text_length"] = work["text"].str.len().clip(0, 5000)
     work["log_amount"] = np.log1p(work["amount"].clip(lower=0))
-    work["is_cfpb"] = work["source_dataset"].str.contains("cfpb", case=False, na=False).astype(int)
-    work["is_ibm_aml"] = work["source_dataset"].str.contains("ibm|aml", case=False, regex=True, na=False).astype(int)
+    work["is_cfpb"] = (
+        work["source_dataset"].str.contains("cfpb", case=False, na=False).astype(int)
+    )
+    work["is_ibm_aml"] = (
+        work["source_dataset"]
+        .str.contains("ibm|aml", case=False, regex=True, na=False)
+        .astype(int)
+    )
     work["event_rank"] = work["_pos"] / max(1, len(work) - 1)
 
     class_counts = work["risk_label"].value_counts().to_dict()
     if len(class_counts) < 2:
-        raise ValueError(f"Need at least two classes for backtest. class_counts={class_counts}")
+        raise ValueError(
+            f"Need at least two classes for backtest. class_counts={class_counts}"
+        )
 
     return work
 
@@ -159,30 +181,62 @@ def _build_model(model_name: str, max_features: int, random_state: int) -> Pipel
     if model_name == "vanilla_text_logreg":
         pre = ColumnTransformer(
             transformers=[
-                ("text", TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), min_df=2), "text"),
+                (
+                    "text",
+                    TfidfVectorizer(
+                        max_features=max_features, ngram_range=(1, 2), min_df=2
+                    ),
+                    "text",
+                ),
             ],
             remainder="drop",
         )
-        return Pipeline([
-            ("preprocess", pre),
-            ("model", LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear")),
-        ])
+        return Pipeline(
+            [
+                ("preprocess", pre),
+                (
+                    "model",
+                    LogisticRegression(
+                        max_iter=1000, class_weight="balanced", solver="liblinear"
+                    ),
+                ),
+            ]
+        )
 
     if model_name == "hybrid_text_numeric_logreg":
         pre = ColumnTransformer(
             transformers=[
-                ("text", TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), min_df=2), "text"),
-                ("num", Pipeline([
-                    ("impute", SimpleImputer(strategy="median")),
-                    ("scale", StandardScaler(with_mean=False)),
-                ]), numeric_cols),
+                (
+                    "text",
+                    TfidfVectorizer(
+                        max_features=max_features, ngram_range=(1, 2), min_df=2
+                    ),
+                    "text",
+                ),
+                (
+                    "num",
+                    Pipeline(
+                        [
+                            ("impute", SimpleImputer(strategy="median")),
+                            ("scale", StandardScaler(with_mean=False)),
+                        ]
+                    ),
+                    numeric_cols,
+                ),
             ],
             remainder="drop",
         )
-        return Pipeline([
-            ("preprocess", pre),
-            ("model", LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear")),
-        ])
+        return Pipeline(
+            [
+                ("preprocess", pre),
+                (
+                    "model",
+                    LogisticRegression(
+                        max_iter=1000, class_weight="balanced", solver="liblinear"
+                    ),
+                ),
+            ]
+        )
 
     if model_name == "numeric_hist_gradient_boosting":
         pre = ColumnTransformer(
@@ -191,15 +245,20 @@ def _build_model(model_name: str, max_features: int, random_state: int) -> Pipel
             ],
             remainder="drop",
         )
-        return Pipeline([
-            ("preprocess", pre),
-            ("model", HistGradientBoostingClassifier(
-                max_iter=120,
-                learning_rate=0.08,
-                l2_regularization=0.01,
-                random_state=random_state,
-            )),
-        ])
+        return Pipeline(
+            [
+                ("preprocess", pre),
+                (
+                    "model",
+                    HistGradientBoostingClassifier(
+                        max_iter=120,
+                        learning_rate=0.08,
+                        l2_regularization=0.01,
+                        random_state=random_state,
+                    ),
+                ),
+            ]
+        )
 
     raise ValueError(f"Unknown model_name={model_name}")
 
@@ -211,7 +270,9 @@ def _score_model(model: Pipeline, X: pd.DataFrame) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-raw))
 
 
-def _metrics_for_scores(y: np.ndarray, score: np.ndarray, review_capacity: float = 0.35) -> dict[str, Any]:
+def _metrics_for_scores(
+    y: np.ndarray, score: np.ndarray, review_capacity: float = 0.35
+) -> dict[str, Any]:
     y = np.asarray(y).astype(int)
     score = np.asarray(score).astype(float)
     pred = (score >= 0.5).astype(int)
@@ -224,16 +285,18 @@ def _metrics_for_scores(y: np.ndarray, score: np.ndarray, review_capacity: float
     }
 
     if len(np.unique(y)) < 2:
-        result.update({
-            "status": "SKIPPED_ONE_CLASS",
-            "roc_auc": None,
-            "pr_auc": None,
-            "f2": None,
-            "brier": None,
-            "high_risk_capture": None,
-            "false_auto_clear": None,
-            "review_burden": float(review_capacity),
-        })
+        result.update(
+            {
+                "status": "SKIPPED_ONE_CLASS",
+                "roc_auc": None,
+                "pr_auc": None,
+                "f2": None,
+                "brier": None,
+                "high_risk_capture": None,
+                "false_auto_clear": None,
+                "review_burden": float(review_capacity),
+            }
+        )
         return result
 
     k = max(1, int(len(score) * review_capacity))
@@ -245,18 +308,20 @@ def _metrics_for_scores(y: np.ndarray, score: np.ndarray, review_capacity: float
     high_risk_capture = float(y[review_mask].sum() / positives)
     false_auto_clear = float(y[~review_mask].sum() / positives)
 
-    result.update({
-        "status": "PASS",
-        "roc_auc": float(roc_auc_score(y, score)),
-        "pr_auc": float(average_precision_score(y, score)),
-        "f2": float(fbeta_score(y, pred, beta=2, zero_division=0)),
-        "brier": float(brier_score_loss(y, score)),
-        "high_risk_capture": high_risk_capture,
-        "false_auto_clear": false_auto_clear,
-        "review_burden": float(review_capacity),
-        "score_mean": float(np.mean(score)),
-        "score_p95": float(np.quantile(score, 0.95)),
-    })
+    result.update(
+        {
+            "status": "PASS",
+            "roc_auc": float(roc_auc_score(y, score)),
+            "pr_auc": float(average_precision_score(y, score)),
+            "f2": float(fbeta_score(y, pred, beta=2, zero_division=0)),
+            "brier": float(brier_score_loss(y, score)),
+            "high_risk_capture": high_risk_capture,
+            "false_auto_clear": false_auto_clear,
+            "review_burden": float(review_capacity),
+            "score_mean": float(np.mean(score)),
+            "score_p95": float(np.quantile(score, 0.95)),
+        }
+    )
     return result
 
 
@@ -268,7 +333,13 @@ def _composite_score(m: dict[str, Any]) -> float:
     false_auto = m.get("false_auto_clear") or 1.0
     brier = m.get("brier") or 1.0
     f2 = m.get("f2") or 0.0
-    return 0.35 * pr_auc + 0.30 * capture - 0.20 * false_auto + 0.10 * (1 - brier) + 0.05 * f2
+    return (
+        0.35 * pr_auc
+        + 0.30 * capture
+        - 0.20 * false_auto
+        + 0.10 * (1 - brier)
+        + 0.05 * f2
+    )
 
 
 def _psi(expected: np.ndarray, observed: np.ndarray, bins: int = 10) -> float:
@@ -294,11 +365,17 @@ def _psi(expected: np.ndarray, observed: np.ndarray, bins: int = 10) -> float:
     return float(np.sum((o_pct - e_pct) * np.log((o_pct + eps) / (e_pct + eps))))
 
 
-def _fit_evaluate_candidates(train: pd.DataFrame, val: pd.DataFrame, max_features: int, random_state: int) -> tuple[str, dict[str, Any], dict[str, Pipeline]]:
+def _fit_evaluate_candidates(
+    train: pd.DataFrame, val: pd.DataFrame, max_features: int, random_state: int
+) -> tuple[str, dict[str, Any], dict[str, Pipeline]]:
     models: dict[str, Pipeline] = {}
     rows: dict[str, Any] = {}
 
-    for name in ["vanilla_text_logreg", "hybrid_text_numeric_logreg", "numeric_hist_gradient_boosting"]:
+    for name in [
+        "vanilla_text_logreg",
+        "hybrid_text_numeric_logreg",
+        "numeric_hist_gradient_boosting",
+    ]:
         model = _build_model(name, max_features=max_features, random_state=random_state)
         t0 = time.perf_counter()
         model.fit(_features(train), _labels(train))
@@ -316,7 +393,9 @@ def _fit_evaluate_candidates(train: pd.DataFrame, val: pd.DataFrame, max_feature
     return best_name, rows, models
 
 
-def _review_capacity_frontier(model: Pipeline, test: pd.DataFrame) -> list[dict[str, Any]]:
+def _review_capacity_frontier(
+    model: Pipeline, test: pd.DataFrame
+) -> list[dict[str, Any]]:
     score = _score_model(model, _features(test))
     y = _labels(test)
     rows = []
@@ -327,7 +406,9 @@ def _review_capacity_frontier(model: Pipeline, test: pd.DataFrame) -> list[dict[
     return rows
 
 
-def _split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def _split_train_val_test(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     n = len(df)
     train_end = int(n * 0.60)
     val_end = int(n * 0.75)
@@ -336,7 +417,9 @@ def _split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame,
     test = df.iloc[val_end:].copy()
 
     if len(train) < 100 or len(val) < 50 or len(test) < 50:
-        raise ValueError(f"Not enough rows for temporal split: train={len(train)}, val={len(val)}, test={len(test)}")
+        raise ValueError(
+            f"Not enough rows for temporal split: train={len(train)}, val={len(val)}, test={len(test)}"
+        )
     return train, val, test
 
 
@@ -345,45 +428,59 @@ def _window_splits(test: pd.DataFrame, n_windows: int) -> list[pd.DataFrame]:
     return [test.iloc[idx].copy() for idx in idx_splits if len(idx) > 0]
 
 
-def _evaluate_policy_static(model: Pipeline, test_windows: list[pd.DataFrame], policy_name: str) -> list[dict[str, Any]]:
+def _evaluate_policy_static(
+    model: Pipeline, test_windows: list[pd.DataFrame], policy_name: str
+) -> list[dict[str, Any]]:
     rows = []
     for i, win in enumerate(test_windows, start=1):
         score = _score_model(model, _features(win))
         metrics = _metrics_for_scores(_labels(win), score, review_capacity=0.35)
-        metrics.update({
-            "policy": policy_name,
-            "window": i,
-            "window_rows": int(len(win)),
-            "window_start": str(win["_event_time"].min()),
-            "window_end": str(win["_event_time"].max()),
-            "retrained_before_window": False,
-            "drift_psi": None,
-            "triggered_retrain_after_window": False,
-        })
+        metrics.update(
+            {
+                "policy": policy_name,
+                "window": i,
+                "window_rows": int(len(win)),
+                "window_start": str(win["_event_time"].min()),
+                "window_end": str(win["_event_time"].max()),
+                "retrained_before_window": False,
+                "drift_psi": None,
+                "triggered_retrain_after_window": False,
+            }
+        )
         rows.append(metrics)
     return rows
 
 
-def _evaluate_policy_quarterly(df: pd.DataFrame, test_windows: list[pd.DataFrame], champion_name: str, max_features: int, random_state: int) -> list[dict[str, Any]]:
+def _evaluate_policy_quarterly(
+    df: pd.DataFrame,
+    test_windows: list[pd.DataFrame],
+    champion_name: str,
+    max_features: int,
+    random_state: int,
+) -> list[dict[str, Any]]:
     rows = []
     for i, win in enumerate(test_windows, start=1):
         train_until = int(win["_pos"].min())
         train_rows = df.iloc[:train_until].copy()
-        model = _build_model(champion_name, max_features=max_features, random_state=random_state + i)
+        model = _build_model(
+            champion_name, max_features=max_features, random_state=random_state + i
+        )
         model.fit(_features(train_rows), _labels(train_rows))
 
         score = _score_model(model, _features(win))
         metrics = _metrics_for_scores(_labels(win), score, review_capacity=0.35)
-        metrics.update({
-            "policy": "quarterly_retrain",
-            "window": i,
-            "window_rows": int(len(win)),
-            "window_start": str(win["_event_time"].min()),
-            "window_end": str(win["_event_time"].max()),
-            "retrained_before_window": True,
-            "drift_psi": None,
-            "triggered_retrain_after_window": False,
-        })
+        metrics.update(
+            {
+                "policy": "quarterly_retrain",
+                "window": i,
+                "window_rows": int(len(win)),
+                "window_start": str(win["_event_time"].min()),
+                "window_end": str(win["_event_time"].max()),
+                "retrained_before_window": True,
+                "drift_psi": None,
+                "triggered_retrain_after_window": False,
+            }
+        )
         rows.append(metrics)
     return rows
 
@@ -400,9 +497,18 @@ def _evaluate_policy_drift_triggered(
     baseline_pr_auc: float,
 ) -> list[dict[str, Any]]:
     rows = []
-    model = _build_model(champion_name, max_features=max_features, random_state=random_state)
+    model = _build_model(
+        champion_name, max_features=max_features, random_state=random_state
+    )
     model.fit(_features(train_initial), _labels(train_initial))
-    baseline_scores = _score_model(model, _features(train_initial.sample(n=min(len(train_initial), 10000), random_state=random_state)))
+    baseline_scores = _score_model(
+        model,
+        _features(
+            train_initial.sample(
+                n=min(len(train_initial), 10000), random_state=random_state
+            )
+        ),
+    )
 
     retrain_next = False
 
@@ -410,9 +516,18 @@ def _evaluate_policy_drift_triggered(
         if retrain_next:
             train_until = int(win["_pos"].min())
             train_rows = df.iloc[:train_until].copy()
-            model = _build_model(champion_name, max_features=max_features, random_state=random_state + i)
+            model = _build_model(
+                champion_name, max_features=max_features, random_state=random_state + i
+            )
             model.fit(_features(train_rows), _labels(train_rows))
-            baseline_scores = _score_model(model, _features(train_rows.sample(n=min(len(train_rows), 10000), random_state=random_state + i)))
+            baseline_scores = _score_model(
+                model,
+                _features(
+                    train_rows.sample(
+                        n=min(len(train_rows), 10000), random_state=random_state + i
+                    )
+                ),
+            )
             retrained_before = True
         else:
             retrained_before = False
@@ -430,17 +545,21 @@ def _evaluate_policy_drift_triggered(
         drift_trigger = psi > psi_threshold
         trigger_retrain = bool(pr_auc_trigger or drift_trigger)
 
-        metrics.update({
-            "policy": "drift_triggered_retrain",
-            "window": i,
-            "window_rows": int(len(win)),
-            "window_start": str(win["_event_time"].min()),
-            "window_end": str(win["_event_time"].max()),
-            "retrained_before_window": retrained_before,
-            "drift_psi": float(psi),
-            "triggered_retrain_after_window": trigger_retrain,
-            "trigger_reason": "psi" if drift_trigger else ("pr_auc_drop" if pr_auc_trigger else "none"),
-        })
+        metrics.update(
+            {
+                "policy": "drift_triggered_retrain",
+                "window": i,
+                "window_rows": int(len(win)),
+                "window_start": str(win["_event_time"].min()),
+                "window_end": str(win["_event_time"].max()),
+                "retrained_before_window": retrained_before,
+                "drift_psi": float(psi),
+                "triggered_retrain_after_window": trigger_retrain,
+                "trigger_reason": "psi"
+                if drift_trigger
+                else ("pr_auc_drop" if pr_auc_trigger else "none"),
+            }
+        )
         rows.append(metrics)
         retrain_next = trigger_retrain
 
@@ -484,7 +603,9 @@ def _md_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--input-csv", default=None)
     parser.add_argument("--force-rebuild", action="store_true")
     parser.add_argument("--cfpb-rows", type=int, default=50000)
@@ -539,7 +660,9 @@ def main() -> None:
         saved_models[name] = str(path)
 
     # Refit champion on train + validation for final test/frontier.
-    champion_model = _build_model(champion_name, max_features=args.max_features, random_state=args.random_state)
+    champion_model = _build_model(
+        champion_name, max_features=args.max_features, random_state=args.random_state
+    )
     train_val = pd.concat([train, val], ignore_index=True)
     champion_model.fit(_features(train_val), _labels(train_val))
 
@@ -547,9 +670,13 @@ def main() -> None:
     joblib.dump(champion_model, champion_path)
 
     test_score = _score_model(champion_model, _features(test))
-    final_test_metrics = _metrics_for_scores(_labels(test), test_score, review_capacity=0.35)
+    final_test_metrics = _metrics_for_scores(
+        _labels(test), test_score, review_capacity=0.35
+    )
     frontier = _review_capacity_frontier(champion_model, test)
-    pd.DataFrame(frontier).to_csv(output_dir / "review_capacity_frontier.csv", index=False)
+    pd.DataFrame(frontier).to_csv(
+        output_dir / "review_capacity_frontier.csv", index=False
+    )
 
     test_windows = _window_splits(test, args.n_windows)
 
@@ -581,11 +708,21 @@ def main() -> None:
 
     policy_rows = static_rows + quarterly_rows + drift_rows
     policy_df = pd.DataFrame(policy_rows)
-    policy_df.to_csv(output_dir / "operational_policy_backtest_metrics.csv", index=False)
+    policy_df.to_csv(
+        output_dir / "operational_policy_backtest_metrics.csv", index=False
+    )
 
     policy_summary = (
         policy_df.groupby("policy", dropna=False)[
-            ["pr_auc", "roc_auc", "f2", "brier", "high_risk_capture", "false_auto_clear", "review_burden"]
+            [
+                "pr_auc",
+                "roc_auc",
+                "f2",
+                "brier",
+                "high_risk_capture",
+                "false_auto_clear",
+                "review_burden",
+            ]
         ]
         .mean(numeric_only=True)
         .reset_index()
@@ -616,8 +753,13 @@ def main() -> None:
         "external_root": str(external_root),
         "common_schema_input": str(common_path),
         "rows": int(len(df)),
-        "source_counts": {str(k): int(v) for k, v in df["source_dataset"].value_counts().to_dict().items()},
-        "label_counts": {str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()},
+        "source_counts": {
+            str(k): int(v)
+            for k, v in df["source_dataset"].value_counts().to_dict().items()
+        },
+        "label_counts": {
+            str(k): int(v) for k, v in df["risk_label"].value_counts().to_dict().items()
+        },
         "temporal_split": {
             "train_rows": int(len(train)),
             "validation_rows": int(len(val)),
@@ -637,31 +779,41 @@ def main() -> None:
         "external_artifacts": {
             "output_dir": str(output_dir),
             "models_dir": str(models_dir),
-            "review_capacity_frontier_csv": str(output_dir / "review_capacity_frontier.csv"),
-            "policy_backtest_csv": str(output_dir / "operational_policy_backtest_metrics.csv"),
+            "review_capacity_frontier_csv": str(
+                output_dir / "review_capacity_frontier.csv"
+            ),
+            "policy_backtest_csv": str(
+                output_dir / "operational_policy_backtest_metrics.csv"
+            ),
             "champion_model_path": str(champion_path),
         },
     }
 
-    (reports_dir / "operational_backtest_metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (reports_dir / "operational_backtest_metrics.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
     candidate_rows = []
     for name, m in candidate_metrics.items():
-        candidate_rows.append({
-            "model": name,
-            "pr_auc": _safe_float(m.get("pr_auc")),
-            "roc_auc": _safe_float(m.get("roc_auc")),
-            "f2": _safe_float(m.get("f2")),
-            "brier": _safe_float(m.get("brier")),
-            "high_risk_capture": _safe_float(m.get("high_risk_capture")),
-            "false_auto_clear": _safe_float(m.get("false_auto_clear")),
-            "composite_score": _safe_float(m.get("composite_score")),
-        })
+        candidate_rows.append(
+            {
+                "model": name,
+                "pr_auc": _safe_float(m.get("pr_auc")),
+                "roc_auc": _safe_float(m.get("roc_auc")),
+                "f2": _safe_float(m.get("f2")),
+                "brier": _safe_float(m.get("brier")),
+                "high_risk_capture": _safe_float(m.get("high_risk_capture")),
+                "false_auto_clear": _safe_float(m.get("false_auto_clear")),
+                "composite_score": _safe_float(m.get("composite_score")),
+            }
+        )
 
     md = []
     md.append("# Operational Backtest\n")
     md.append("## Claim boundary\n")
-    md.append("This operational backtest uses local external public-data samples only. It does not use proprietary bank data, production payment logs, real customer account data, or regulatory certification.\n")
+    md.append(
+        "This operational backtest uses local external public-data samples only. It does not use proprietary bank data, production payment logs, real customer account data, or regulatory certification.\n"
+    )
     md.append("## Dataset\n")
     md.append(f"- Common schema input: `{common_path}`\n")
     md.append(f"- Rows: `{len(df)}`\n")
@@ -670,39 +822,96 @@ def main() -> None:
     md.append("## Temporal split\n")
     md.append("```json\n" + json.dumps(result["temporal_split"], indent=2) + "\n```\n")
     md.append("## Champion/challenger validation\n")
-    md.append(_md_table(candidate_rows, ["model", "pr_auc", "roc_auc", "f2", "brier", "high_risk_capture", "false_auto_clear", "composite_score"]))
+    md.append(
+        _md_table(
+            candidate_rows,
+            [
+                "model",
+                "pr_auc",
+                "roc_auc",
+                "f2",
+                "brier",
+                "high_risk_capture",
+                "false_auto_clear",
+                "composite_score",
+            ],
+        )
+    )
     md.append("\n## Selected champion\n")
     md.append(f"- Champion: `{champion_name}`\n")
     md.append(f"- Saved champion model: `{champion_path}`\n")
     md.append("## Final test metrics at 35% review capacity\n")
     md.append("```json\n" + json.dumps(final_test_metrics, indent=2) + "\n```\n")
     md.append("## Review-capacity frontier\n")
-    md.append(_md_table(frontier, ["capacity", "pr_auc", "roc_auc", "f2", "brier", "high_risk_capture", "false_auto_clear", "review_burden"]))
+    md.append(
+        _md_table(
+            frontier,
+            [
+                "capacity",
+                "pr_auc",
+                "roc_auc",
+                "f2",
+                "brier",
+                "high_risk_capture",
+                "false_auto_clear",
+                "review_burden",
+            ],
+        )
+    )
     md.append("\n## Static vs quarterly vs drift-triggered retraining\n")
-    md.append(_md_table(policy_summary, ["policy", "pr_auc", "roc_auc", "f2", "brier", "high_risk_capture", "false_auto_clear", "review_burden"]))
+    md.append(
+        _md_table(
+            policy_summary,
+            [
+                "policy",
+                "pr_auc",
+                "roc_auc",
+                "f2",
+                "brier",
+                "high_risk_capture",
+                "false_auto_clear",
+                "review_burden",
+            ],
+        )
+    )
     md.append("\n## Latency\n")
     md.append("```json\n" + json.dumps(latency, indent=2) + "\n```\n")
     md.append("## External artifacts\n")
     md.append(f"- Model/output directory: `{output_dir}`\n")
-    md.append(f"- Policy backtest CSV: `{output_dir / 'operational_policy_backtest_metrics.csv'}`\n")
-    md.append(f"- Review frontier CSV: `{output_dir / 'review_capacity_frontier.csv'}`\n")
+    md.append(
+        f"- Policy backtest CSV: `{output_dir / 'operational_policy_backtest_metrics.csv'}`\n"
+    )
+    md.append(
+        f"- Review frontier CSV: `{output_dir / 'review_capacity_frontier.csv'}`\n"
+    )
     md.append("## Interpretation\n")
-    md.append("- Use this as an operational ML experiment, separate from the GitHub-clean sample release gate.\n")
+    md.append(
+        "- Use this as an operational ML experiment, separate from the GitHub-clean sample release gate.\n"
+    )
     md.append("- Prefer wording such as `external public-data operational backtest`.\n")
-    md.append("- Keep generated models and large operational artifacts outside the repository.\n")
+    md.append(
+        "- Keep generated models and large operational artifacts outside the repository.\n"
+    )
 
-    (reports_dir / "24_operational_backtest.md").write_text("\n".join(md), encoding="utf-8")
+    (reports_dir / "24_operational_backtest.md").write_text(
+        "\n".join(md), encoding="utf-8"
+    )
 
-    print(json.dumps({
-        "status": "PASS",
-        "rows": int(len(df)),
-        "champion_model": champion_name,
-        "final_test_metrics": final_test_metrics,
-        "policy_summary": policy_summary,
-        "latency": latency,
-        "report": "reports/24_operational_backtest.md",
-        "external_output_dir": str(output_dir),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "rows": int(len(df)),
+                "champion_model": champion_name,
+                "final_test_metrics": final_test_metrics,
+                "policy_summary": policy_summary,
+                "latency": latency,
+                "report": "reports/24_operational_backtest.md",
+                "external_output_dir": str(output_dir),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

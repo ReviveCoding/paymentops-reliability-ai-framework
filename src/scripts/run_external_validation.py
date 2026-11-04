@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -6,14 +6,13 @@ import os
 from pathlib import Path
 
 import pandas as pd
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
-    roc_auc_score,
-    fbeta_score,
     brier_score_loss,
+    fbeta_score,
+    roc_auc_score,
 )
 from sklearn.model_selection import train_test_split
 
@@ -61,8 +60,12 @@ def _standardize_ibm_chunked(
                     return df[n].fillna(default)
             return pd.Series([default] * len(df), index=df.index)
 
-        label_raw = col(chunk, "Is Laundering", "is_laundering", "risk_label", "isFraud", default=0)
-        label = pd.to_numeric(label_raw, errors="coerce").fillna(0).astype(int).clip(0, 1)
+        label_raw = col(
+            chunk, "Is Laundering", "is_laundering", "risk_label", "isFraud", default=0
+        )
+        label = (
+            pd.to_numeric(label_raw, errors="coerce").fillna(0).astype(int).clip(0, 1)
+        )
         chunk = chunk.copy()
         chunk["_risk_label_tmp"] = label
 
@@ -91,36 +94,63 @@ def _standardize_ibm_chunked(
                 return df[n].fillna(default)
         return pd.Series([default] * len(df), index=df.index)
 
-    amount = pd.to_numeric(col(raw, "Amount", "amount", default=0), errors="coerce").fillna(0.0)
-    label_raw = col(raw, "Is Laundering", "is_laundering", "risk_label", "isFraud", "_risk_label_tmp", default=0)
+    amount = pd.to_numeric(
+        col(raw, "Amount", "amount", default=0), errors="coerce"
+    ).fillna(0.0)
+    label_raw = col(
+        raw,
+        "Is Laundering",
+        "is_laundering",
+        "risk_label",
+        "isFraud",
+        "_risk_label_tmp",
+        default=0,
+    )
     label = pd.to_numeric(label_raw, errors="coerce").fillna(0).astype(int).clip(0, 1)
-    sender = col(raw, "From ID", "Sender", "sender", default="unknown_sender").astype(str)
-    receiver = col(raw, "To ID", "Receiver", "receiver", default="unknown_receiver").astype(str)
+    sender = col(raw, "From ID", "Sender", "sender", default="unknown_sender").astype(
+        str
+    )
+    receiver = col(
+        raw, "To ID", "Receiver", "receiver", default="unknown_receiver"
+    ).astype(str)
     currency = col(raw, "Payment Currency", "currency", default="UNK").astype(str)
 
-    return pd.DataFrame({
-        "case_id": [f"ibm_aml_external_{i}" for i in range(len(raw))],
-        "source_dataset": "ibm_aml_external_public_synthetic",
-        "event_time": col(raw, "Timestamp", "event_time", default="1970-01-01").astype(str),
-        "case_type": "aml_transaction",
-        "amount": amount,
-        "text": (
-            "AML transaction from " + sender
-            + " to " + receiver
-            + " currency " + currency
-            + " amount " + amount.round(2).astype(str)
-        ),
-        "risk_label": label,
-        "route_label": label.map({1: "compliance_review", 0: "auto_route"}),
-        "payment_status": "NA",
-        "exception_type": "aml_laundering_label",
-        "issue_group": "aml_risk",
-    })
+    return pd.DataFrame(
+        {
+            "case_id": [f"ibm_aml_external_{i}" for i in range(len(raw))],
+            "source_dataset": "ibm_aml_external_public_synthetic",
+            "event_time": col(
+                raw, "Timestamp", "event_time", default="1970-01-01"
+            ).astype(str),
+            "case_type": "aml_transaction",
+            "amount": amount,
+            "text": (
+                "AML transaction from "
+                + sender
+                + " to "
+                + receiver
+                + " currency "
+                + currency
+                + " amount "
+                + amount.round(2).astype(str)
+            ),
+            "risk_label": label,
+            "route_label": label.map({1: "compliance_review", 0: "auto_route"}),
+            "payment_status": "NA",
+            "exception_type": "aml_laundering_label",
+            "issue_group": "aml_risk",
+        }
+    )
 
 
 def _evaluate_text_risk(df: pd.DataFrame) -> dict:
     work = df.dropna(subset=["text", "risk_label"]).copy()
-    work["risk_label"] = pd.to_numeric(work["risk_label"], errors="coerce").fillna(0).astype(int).clip(0, 1)
+    work["risk_label"] = (
+        pd.to_numeric(work["risk_label"], errors="coerce")
+        .fillna(0)
+        .astype(int)
+        .clip(0, 1)
+    )
 
     class_counts = work["risk_label"].value_counts().to_dict()
     if len(class_counts) < 2 or len(work) < 50:
@@ -180,7 +210,9 @@ def _evaluate_text_risk(df: pd.DataFrame) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--cfpb-rows", type=int, default=50000)
     parser.add_argument("--ibm-rows", type=int, default=50000)
     parser.add_argument("--ibm-chunk-size", type=int, default=50000)
@@ -228,14 +260,39 @@ def main() -> None:
     out_csv = processed / "external_common_case_schema.csv"
     combined.to_csv(out_csv, index=False)
 
-    source_counts = combined["source_dataset"].value_counts().to_dict() if len(combined) else {}
-    label_counts = combined["risk_label"].value_counts().to_dict() if len(combined) else {}
-    null_counts = combined[["case_id", "source_dataset", "event_time", "case_type", "text", "risk_label", "route_label"]].isna().sum().to_dict() if len(combined) else {}
+    source_counts = (
+        combined["source_dataset"].value_counts().to_dict() if len(combined) else {}
+    )
+    label_counts = (
+        combined["risk_label"].value_counts().to_dict() if len(combined) else {}
+    )
+    null_counts = (
+        combined[
+            [
+                "case_id",
+                "source_dataset",
+                "event_time",
+                "case_type",
+                "text",
+                "risk_label",
+                "route_label",
+            ]
+        ]
+        .isna()
+        .sum()
+        .to_dict()
+        if len(combined)
+        else {}
+    )
 
-    metrics = _evaluate_text_risk(combined) if len(combined) else {
-        "status": "SKIPPED",
-        "reason": "No external rows loaded.",
-    }
+    metrics = (
+        _evaluate_text_risk(combined)
+        if len(combined)
+        else {
+            "status": "SKIPPED",
+            "reason": "No external rows loaded.",
+        }
+    )
 
     result = {
         "external_root": str(root),
@@ -249,31 +306,49 @@ def main() -> None:
         "claim_boundary": "External public-data validation only. No proprietary bank data, no production payment logs, no regulatory certification.",
     }
 
-    (reports / "external_full_data_validation.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (reports / "external_full_data_validation.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
     md = []
     md.append("# External Full-Data Validation\n")
     md.append("## Claim boundary\n")
-    md.append("This report validates local external public-data adapters. It does not use proprietary bank data, real customer account data, or production payment logs.\n")
+    md.append(
+        "This report validates local external public-data adapters. It does not use proprietary bank data, real customer account data, or production payment logs.\n"
+    )
     md.append("## Data sources detected\n")
     md.append(f"- External root: `{root}`\n")
-    md.append(f"- CFPB path exists: `{detected.get('cfpb_exists')}`; rows loaded: `{detected.get('cfpb_rows_loaded', 0)}`\n")
-    md.append(f"- IBM AML transaction path: `{detected.get('ibm_transaction_path')}`; rows loaded: `{detected.get('ibm_rows_loaded', 0)}`\n")
+    md.append(
+        f"- CFPB path exists: `{detected.get('cfpb_exists')}`; rows loaded: `{detected.get('cfpb_rows_loaded', 0)}`\n"
+    )
+    md.append(
+        f"- IBM AML transaction path: `{detected.get('ibm_transaction_path')}`; rows loaded: `{detected.get('ibm_rows_loaded', 0)}`\n"
+    )
     md.append("## Common-schema output\n")
     md.append(f"- Output CSV: `{out_csv}`\n")
     md.append(f"- Total rows: `{len(combined)}`\n")
     md.append("## Source counts\n")
-    md.append(pd.Series(source_counts).to_markdown() if source_counts else "_No rows loaded._")
+    md.append(
+        pd.Series(source_counts).to_markdown() if source_counts else "_No rows loaded._"
+    )
     md.append("\n## Label counts\n")
-    md.append(pd.Series(label_counts).to_markdown() if label_counts else "_No labels loaded._")
+    md.append(
+        pd.Series(label_counts).to_markdown() if label_counts else "_No labels loaded._"
+    )
     md.append("\n## Text-risk evaluation\n")
     md.append("```json\n" + json.dumps(metrics, indent=2) + "\n```\n")
     md.append("## Interpretation\n")
-    md.append("- This is a public-data adapter validation, separate from the GitHub-clean sample release gate.\n")
-    md.append("- Use these metrics only with wording such as `external public-data validation sample`.\n")
+    md.append(
+        "- This is a public-data adapter validation, separate from the GitHub-clean sample release gate.\n"
+    )
+    md.append(
+        "- Use these metrics only with wording such as `external public-data validation sample`.\n"
+    )
     md.append("- Keep full external datasets outside the repository.\n")
 
-    (reports / "23_external_full_data_validation.md").write_text("\n".join(md), encoding="utf-8")
+    (reports / "23_external_full_data_validation.md").write_text(
+        "\n".join(md), encoding="utf-8"
+    )
 
     print(json.dumps(result, indent=2))
 

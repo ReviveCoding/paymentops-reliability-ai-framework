@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import json
+
 import numpy as np
 import pandas as pd
-from src.utils import REPORTS_DIR, write_json, write_report
-from src.reliability.rule_prior_residual import train_residual_corrected_model, compute_rule_prior
-from src.reliability.case_health_timestep import add_case_health_timestep
-from src.evaluation.metrics import review_policy_metrics, expected_calibration_error, binary_metrics
+
 from src.data.common_schema import load_common_cases
+from src.evaluation.metrics import (
+    binary_metrics,
+    expected_calibration_error,
+    review_policy_metrics,
+)
+from src.reliability.case_health_timestep import add_case_health_timestep
+from src.reliability.rule_prior_residual import (
+    compute_rule_prior,
+    train_residual_corrected_model,
+)
+from src.utils import REPORTS_DIR, write_json, write_report
 
 
 def _amount_bucket(x: float) -> str:
@@ -30,7 +39,9 @@ def _slice_metrics(x_test: pd.DataFrame, y_test, prob, group_col: str) -> list[d
             continue
         m = binary_metrics(g["_y"], g["_prob"], threshold=0.5)
         m.update(review_policy_metrics(g["_y"], g["_prob"], review_capacity_rate=0.45))
-        rows.append({"slice_type": group_col, "slice": str(name), "n": int(len(g)), **m})
+        rows.append(
+            {"slice_type": group_col, "slice": str(name), "n": int(len(g)), **m}
+        )
     return rows
 
 
@@ -59,7 +70,9 @@ def run_robustness() -> dict:
     slice_rows = []
     for col in ["case_type", "payment_status", "exception_type", "amount_bucket"]:
         slice_rows.extend(_slice_metrics(x, y, prob, col))
-    worst_by_false_auto_clear = sorted(slice_rows, key=lambda r: r.get("false_auto_clear_rate", 0), reverse=True)[:8]
+    worst_by_false_auto_clear = sorted(
+        slice_rows, key=lambda r: r.get("false_auto_clear_rate", 0), reverse=True
+    )[:8]
     worst_by_ece = sorted(slice_rows, key=lambda r: r.get("ece", 0), reverse=True)[:8]
 
     # Synthetic stress scenarios: amount shock and status-risk shock.
@@ -69,14 +82,22 @@ def run_robustness() -> dict:
     stressed_amount["amount"] = stressed_amount["amount"].astype(float) * 3.0
     stressed_amount["rule_prior_stress"] = compute_rule_prior(stressed_amount)
     stressed_status = stressed.copy()
-    pay_mask = stressed_status["case_type"].str.contains("payment|fraud", case=False, na=False)
+    pay_mask = stressed_status["case_type"].str.contains(
+        "payment|fraud", case=False, na=False
+    )
     stressed_status.loc[pay_mask, "payment_status"] = "PDNG"
     stressed_status.loc[pay_mask, "exception_type"] = "status_mismatch"
     stressed_status["rule_prior_stress"] = compute_rule_prior(stressed_status)
 
-    psi_amount = _population_stability_index(stressed["amount"].astype(float), stressed_amount["amount"].astype(float))
-    prior_shift_amount = float((stressed_amount["rule_prior_stress"] - stressed["rule_prior_base"]).mean())
-    prior_shift_status = float((stressed_status["rule_prior_stress"] - stressed["rule_prior_base"]).mean())
+    psi_amount = _population_stability_index(
+        stressed["amount"].astype(float), stressed_amount["amount"].astype(float)
+    )
+    prior_shift_amount = float(
+        (stressed_amount["rule_prior_stress"] - stressed["rule_prior_base"]).mean()
+    )
+    prior_shift_status = float(
+        (stressed_status["rule_prior_stress"] - stressed["rule_prior_base"]).mean()
+    )
 
     output = {
         "slice_count": len(slice_rows),
@@ -89,8 +110,18 @@ def run_robustness() -> dict:
         },
     }
     write_json(REPORTS_DIR / "robustness_metrics.json", output)
-    fa_rows = "\n".join([f"| {r['slice_type']} | {r['slice']} | {r['n']} | {r['false_auto_clear_rate']:.3f} | {r['review_burden']:.3f} | {r['ece']:.3f} |" for r in worst_by_false_auto_clear])
-    ece_rows = "\n".join([f"| {r['slice_type']} | {r['slice']} | {r['n']} | {r['ece']:.3f} | {r['false_auto_clear_rate']:.3f} | {r['review_burden']:.3f} |" for r in worst_by_ece])
+    fa_rows = "\n".join(
+        [
+            f"| {r['slice_type']} | {r['slice']} | {r['n']} | {r['false_auto_clear_rate']:.3f} | {r['review_burden']:.3f} | {r['ece']:.3f} |"
+            for r in worst_by_false_auto_clear
+        ]
+    )
+    ece_rows = "\n".join(
+        [
+            f"| {r['slice_type']} | {r['slice']} | {r['n']} | {r['ece']:.3f} | {r['false_auto_clear_rate']:.3f} | {r['review_burden']:.3f} |"
+            for r in worst_by_ece
+        ]
+    )
     body = f"""
 ## Purpose
 
@@ -120,7 +151,11 @@ This report closes a remaining weakness from the first enhanced version: aggrega
 
 The project now surfaces whether the release gate is driven by a few fragile slices. This is still a local/sample-data stress test, not evidence of production robustness.
 """
-    write_report(REPORTS_DIR / "11_worst_slice_and_stress_report.md", "Worst-Slice and Stress Robustness Report", body)
+    write_report(
+        REPORTS_DIR / "11_worst_slice_and_stress_report.md",
+        "Worst-Slice and Stress Robustness Report",
+        body,
+    )
     return output
 
 

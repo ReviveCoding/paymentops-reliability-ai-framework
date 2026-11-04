@@ -11,7 +11,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -29,15 +28,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+from src.scripts.run_external_validation import _find_ibm_transaction_file
 from src.scripts.run_operational_backtest import (
-    _prepare_operational_frame,
-    _split_train_val_test,
     _features,
     _labels,
+    _prepare_operational_frame,
     _score_model,
+    _split_train_val_test,
 )
-from src.scripts.run_external_validation import _find_ibm_transaction_file
-
 
 REVIEW_CAPACITIES = [0.05, 0.10, 0.20, 0.35, 0.50]
 
@@ -77,7 +75,9 @@ def _ensure_dirs(*paths: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-def _first_existing_col(df: pd.DataFrame, candidates: list[str], default: Any = "") -> pd.Series:
+def _first_existing_col(
+    df: pd.DataFrame, candidates: list[str], default: Any = ""
+) -> pd.Series:
     lower_map = {c.lower().strip(): c for c in df.columns}
     for name in candidates:
         key = name.lower().strip()
@@ -117,7 +117,9 @@ def _load_ibm_raw_sample(
             ["Is Laundering", "is_laundering", "risk_label", "isFraud"],
             default=0,
         )
-        label = pd.to_numeric(label_raw, errors="coerce").fillna(0).astype(int).clip(0, 1)
+        label = (
+            pd.to_numeric(label_raw, errors="coerce").fillna(0).astype(int).clip(0, 1)
+        )
         chunk["_risk_label_tmp"] = label
 
         positives = chunk[chunk["_risk_label_tmp"] == 1]
@@ -128,7 +130,9 @@ def _load_ibm_raw_sample(
 
         if len(negatives) > 0:
             keep_neg = min(len(negatives), max(2000, max_rows // max(1, max_chunks)))
-            frames.append(negatives.sample(n=keep_neg, random_state=random_state + chunk_idx))
+            frames.append(
+                negatives.sample(n=keep_neg, random_state=random_state + chunk_idx)
+            )
 
         if sum(len(x) for x in frames) >= max_rows:
             break
@@ -146,25 +150,58 @@ def _load_ibm_raw_sample(
         if keep_pos > 0:
             sampled.append(pos.sample(n=keep_pos, random_state=random_state))
         if keep_neg > 0 and len(neg) > 0:
-            sampled.append(neg.sample(n=min(keep_neg, len(neg)), random_state=random_state))
+            sampled.append(
+                neg.sample(n=min(keep_neg, len(neg)), random_state=random_state)
+            )
         data = pd.concat(sampled, ignore_index=True)
 
     return data.reset_index(drop=True)
 
 
 def _standardize_ibm_raw(raw: pd.DataFrame) -> pd.DataFrame:
-    sender = _first_existing_col(raw, ["From ID", "Sender", "sender", "from_id"], default="unknown_sender").astype(str)
-    receiver = _first_existing_col(raw, ["To ID", "Receiver", "receiver", "to_id"], default="unknown_receiver").astype(str)
-    amount = pd.to_numeric(_first_existing_col(raw, ["Amount", "amount"], default=0), errors="coerce").fillna(0.0)
-    label = pd.to_numeric(
-        _first_existing_col(raw, ["Is Laundering", "is_laundering", "risk_label", "isFraud", "_risk_label_tmp"], default=0),
-        errors="coerce",
-    ).fillna(0).astype(int).clip(0, 1)
+    sender = _first_existing_col(
+        raw, ["From ID", "Sender", "sender", "from_id"], default="unknown_sender"
+    ).astype(str)
+    receiver = _first_existing_col(
+        raw, ["To ID", "Receiver", "receiver", "to_id"], default="unknown_receiver"
+    ).astype(str)
+    amount = pd.to_numeric(
+        _first_existing_col(raw, ["Amount", "amount"], default=0), errors="coerce"
+    ).fillna(0.0)
+    label = (
+        pd.to_numeric(
+            _first_existing_col(
+                raw,
+                [
+                    "Is Laundering",
+                    "is_laundering",
+                    "risk_label",
+                    "isFraud",
+                    "_risk_label_tmp",
+                ],
+                default=0,
+            ),
+            errors="coerce",
+        )
+        .fillna(0)
+        .astype(int)
+        .clip(0, 1)
+    )
 
-    payment_currency = _first_existing_col(raw, ["Payment Currency", "payment_currency", "Currency", "currency"], default="UNK").astype(str)
-    receiving_currency = _first_existing_col(raw, ["Receiving Currency", "receiving_currency"], default="UNK").astype(str)
-    payment_format = _first_existing_col(raw, ["Payment Format", "payment_format", "Format"], default="UNK").astype(str)
-    event_time = _first_existing_col(raw, ["Timestamp", "event_time", "Date", "datetime"], default="1970-01-01").astype(str)
+    payment_currency = _first_existing_col(
+        raw,
+        ["Payment Currency", "payment_currency", "Currency", "currency"],
+        default="UNK",
+    ).astype(str)
+    receiving_currency = _first_existing_col(
+        raw, ["Receiving Currency", "receiving_currency"], default="UNK"
+    ).astype(str)
+    payment_format = _first_existing_col(
+        raw, ["Payment Format", "payment_format", "Format"], default="UNK"
+    ).astype(str)
+    event_time = _first_existing_col(
+        raw, ["Timestamp", "event_time", "Date", "datetime"], default="1970-01-01"
+    ).astype(str)
 
     df = pd.DataFrame(
         {
@@ -199,7 +236,10 @@ def _standardize_ibm_raw(raw: pd.DataFrame) -> pd.DataFrame:
     )
 
     parsed = pd.to_datetime(df["event_time"], errors="coerce", utc=True)
-    fallback = pd.Series(pd.date_range("2023-01-01", periods=len(df), freq="min", tz="UTC"), index=df.index)
+    fallback = pd.Series(
+        pd.date_range("2023-01-01", periods=len(df), freq="min", tz="UTC"),
+        index=df.index,
+    )
     df["_event_time"] = parsed.fillna(fallback)
     df = df.sort_values(["_event_time", "case_id"]).reset_index(drop=True)
     df["_pos"] = np.arange(len(df))
@@ -219,7 +259,7 @@ class BehaviorFeatureMapper:
         self.currency_stats: pd.DataFrame | None = None
         self.global_amount_mean: float = 1.0
 
-    def fit(self, train: pd.DataFrame) -> "BehaviorFeatureMapper":
+    def fit(self, train: pd.DataFrame) -> BehaviorFeatureMapper:
         work = train.copy()
         work["amount"] = pd.to_numeric(work["amount"], errors="coerce").fillna(0.0)
         self.global_amount_mean = float(work["amount"].mean()) if len(work) else 1.0
@@ -249,43 +289,95 @@ class BehaviorFeatureMapper:
         return self
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        if self.sender_stats is None or self.receiver_stats is None or self.pair_stats is None or self.currency_stats is None:
+        if (
+            self.sender_stats is None
+            or self.receiver_stats is None
+            or self.pair_stats is None
+            or self.currency_stats is None
+        ):
             raise RuntimeError("BehaviorFeatureMapper must be fit before transform.")
 
         out = df.copy()
         out["amount"] = pd.to_numeric(out["amount"], errors="coerce").fillna(0.0)
 
-        out = out.merge(self.sender_stats, how="left", left_on="sender_id", right_index=True)
-        out = out.merge(self.receiver_stats, how="left", left_on="receiver_id", right_index=True)
-        out = out.merge(self.pair_stats, how="left", left_on=["sender_id", "receiver_id"], right_index=True)
-        out = out.merge(self.currency_stats, how="left", left_on="payment_currency", right_index=True)
+        out = out.merge(
+            self.sender_stats, how="left", left_on="sender_id", right_index=True
+        )
+        out = out.merge(
+            self.receiver_stats, how="left", left_on="receiver_id", right_index=True
+        )
+        out = out.merge(
+            self.pair_stats,
+            how="left",
+            left_on=["sender_id", "receiver_id"],
+            right_index=True,
+        )
+        out = out.merge(
+            self.currency_stats,
+            how="left",
+            left_on="payment_currency",
+            right_index=True,
+        )
 
         fill_zero_cols = [
-            "sender_tx_count", "receiver_tx_count", "sender_total_amount", "receiver_total_amount",
-            "sender_unique_receivers", "receiver_unique_senders", "pair_tx_count", "pair_total_amount", "currency_tx_count",
+            "sender_tx_count",
+            "receiver_tx_count",
+            "sender_total_amount",
+            "receiver_total_amount",
+            "sender_unique_receivers",
+            "receiver_unique_senders",
+            "pair_tx_count",
+            "pair_total_amount",
+            "currency_tx_count",
         ]
         for col in fill_zero_cols:
             out[col] = pd.to_numeric(out.get(col, 0), errors="coerce").fillna(0.0)
 
-        out["sender_avg_amount"] = pd.to_numeric(out.get("sender_avg_amount", self.global_amount_mean), errors="coerce").fillna(self.global_amount_mean)
-        out["receiver_avg_amount"] = pd.to_numeric(out.get("receiver_avg_amount", self.global_amount_mean), errors="coerce").fillna(self.global_amount_mean)
-        out["currency_avg_amount"] = pd.to_numeric(out.get("currency_avg_amount", self.global_amount_mean), errors="coerce").fillna(self.global_amount_mean)
-        out["amount_to_currency_avg"] = out["amount"] / out["currency_avg_amount"].replace(0, self.global_amount_mean)
+        out["sender_avg_amount"] = pd.to_numeric(
+            out.get("sender_avg_amount", self.global_amount_mean), errors="coerce"
+        ).fillna(self.global_amount_mean)
+        out["receiver_avg_amount"] = pd.to_numeric(
+            out.get("receiver_avg_amount", self.global_amount_mean), errors="coerce"
+        ).fillna(self.global_amount_mean)
+        out["currency_avg_amount"] = pd.to_numeric(
+            out.get("currency_avg_amount", self.global_amount_mean), errors="coerce"
+        ).fillna(self.global_amount_mean)
+        out["amount_to_currency_avg"] = out["amount"] / out[
+            "currency_avg_amount"
+        ].replace(0, self.global_amount_mean)
 
         # Leakage-safe percentile proxy using the train-fitted currency average as denominator.
-        out["amount_percentile_by_currency"] = out.groupby("payment_currency")["amount"].rank(pct=True).fillna(0.5)
+        out["amount_percentile_by_currency"] = (
+            out.groupby("payment_currency")["amount"].rank(pct=True).fillna(0.5)
+        )
         return out
 
 
 def _build_text_model(max_features: int, random_state: int) -> Pipeline:
     pre = ColumnTransformer(
-        [("text", TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), min_df=2), "text")],
+        [
+            (
+                "text",
+                TfidfVectorizer(
+                    max_features=max_features, ngram_range=(1, 2), min_df=2
+                ),
+                "text",
+            )
+        ],
         remainder="drop",
     )
     return Pipeline(
         [
             ("preprocess", pre),
-            ("model", LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear", random_state=random_state)),
+            (
+                "model",
+                LogisticRegression(
+                    max_iter=1000,
+                    class_weight="balanced",
+                    solver="liblinear",
+                    random_state=random_state,
+                ),
+            ),
         ]
     )
 
@@ -294,7 +386,11 @@ def _build_behavior_hgb(random_state: int) -> Pipeline:
     pre = ColumnTransformer(
         [
             ("num", SimpleImputer(strategy="median"), NUMERIC_FEATURES),
-            ("cat", OneHotEncoder(handle_unknown="ignore", max_categories=30), CATEGORICAL_FEATURES),
+            (
+                "cat",
+                OneHotEncoder(handle_unknown="ignore", max_categories=30),
+                CATEGORICAL_FEATURES,
+            ),
         ],
         remainder="drop",
     )
@@ -318,15 +414,36 @@ def _build_behavior_hgb(random_state: int) -> Pipeline:
 def _build_behavior_logreg(random_state: int) -> Pipeline:
     pre = ColumnTransformer(
         [
-            ("num", Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler())]), NUMERIC_FEATURES),
-            ("cat", OneHotEncoder(handle_unknown="ignore", max_categories=30), CATEGORICAL_FEATURES),
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("impute", SimpleImputer(strategy="median")),
+                        ("scale", StandardScaler()),
+                    ]
+                ),
+                NUMERIC_FEATURES,
+            ),
+            (
+                "cat",
+                OneHotEncoder(handle_unknown="ignore", max_categories=30),
+                CATEGORICAL_FEATURES,
+            ),
         ],
         remainder="drop",
     )
     return Pipeline(
         [
             ("preprocess", pre),
-            ("model", LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear", random_state=random_state)),
+            (
+                "model",
+                LogisticRegression(
+                    max_iter=1000,
+                    class_weight="balanced",
+                    solver="liblinear",
+                    random_state=random_state,
+                ),
+            ),
         ]
     )
 
@@ -358,11 +475,15 @@ def _ece(y: np.ndarray, score: np.ndarray, n_bins: int = 10) -> float:
     for lo, hi in zip(bins[:-1], bins[1:]):
         mask = (score >= lo) & (score <= hi if hi == 1 else score < hi)
         if np.any(mask):
-            value += float(mask.mean()) * abs(float(y[mask].mean()) - float(score[mask].mean()))
+            value += float(mask.mean()) * abs(
+                float(y[mask].mean()) - float(score[mask].mean())
+            )
     return float(value)
 
 
-def _eval_scores(y: np.ndarray, score: np.ndarray, review_capacity: float, threshold: float = 0.5) -> dict[str, Any]:
+def _eval_scores(
+    y: np.ndarray, score: np.ndarray, review_capacity: float, threshold: float = 0.5
+) -> dict[str, Any]:
     y = np.asarray(y).astype(int)
     score = np.clip(np.asarray(score).astype(float), 0.0, 1.0)
     pred = (score >= threshold).astype(int)
@@ -388,11 +509,15 @@ def _eval_scores(y: np.ndarray, score: np.ndarray, review_capacity: float, thres
         "high_risk_capture": float(y[review].sum() / positives),
         "false_auto_clear": float(y[~review].sum() / positives),
         "review_capacity": float(review_capacity),
-        "capture_lift_vs_random": float(y[review].sum() / positives / review_capacity) if review_capacity > 0 else None,
+        "capture_lift_vs_random": float(y[review].sum() / positives / review_capacity)
+        if review_capacity > 0
+        else None,
     }
 
 
-def _best_threshold(y_val: np.ndarray, val_score: np.ndarray, n_thresholds: int) -> float:
+def _best_threshold(
+    y_val: np.ndarray, val_score: np.ndarray, n_thresholds: int
+) -> float:
     best_threshold = 0.5
     best_f2 = -1.0
     for threshold in np.linspace(0.01, 0.99, n_thresholds):
@@ -409,12 +534,18 @@ def _split_df(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFram
     n = len(df)
     train_end = int(n * 0.60)
     val_end = int(n * 0.75)
-    return df.iloc[:train_end].copy(), df.iloc[train_end:val_end].copy(), df.iloc[val_end:].copy()
+    return (
+        df.iloc[:train_end].copy(),
+        df.iloc[train_end:val_end].copy(),
+        df.iloc[val_end:].copy(),
+    )
 
 
 def _prepare_cfpb(common_csv: Path) -> pd.DataFrame:
     df = _prepare_operational_frame(common_csv)
-    cfpb = df[df["source_dataset"].astype(str).str.contains("cfpb", case=False, na=False)].copy()
+    cfpb = df[
+        df["source_dataset"].astype(str).str.contains("cfpb", case=False, na=False)
+    ].copy()
     if len(cfpb) == 0:
         return cfpb
     cfpb["sender_id"] = "NA"
@@ -431,7 +562,9 @@ def _prepare_cfpb(common_csv: Path) -> pd.DataFrame:
     return cfpb
 
 
-def _fit_if_two_classes(model: Any, train: pd.DataFrame, feature_frame_fn) -> Any | None:
+def _fit_if_two_classes(
+    model: Any, train: pd.DataFrame, feature_frame_fn
+) -> Any | None:
     y = train["risk_label"].astype(int).to_numpy()
     if len(np.unique(y)) < 2:
         return None
@@ -478,7 +611,9 @@ def _write_md_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", ""))
+    parser.add_argument(
+        "--external-root", default=os.environ.get("PAYMENTOPS_EXTERNAL_DATA", "")
+    )
     parser.add_argument("--common-csv", default=None)
     parser.add_argument("--max-ibm-rows", type=int, default=500000)
     parser.add_argument("--chunk-size", type=int, default=100000)
@@ -493,7 +628,11 @@ def main() -> None:
     if not external_root.exists():
         raise FileNotFoundError(f"External root not found: {external_root}")
 
-    common_csv = Path(args.common_csv) if args.common_csv else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    common_csv = (
+        Path(args.common_csv)
+        if args.common_csv
+        else external_root / "validation_outputs" / "external_common_case_schema.csv"
+    )
     if not common_csv.exists():
         raise FileNotFoundError(f"Common schema CSV not found: {common_csv}")
 
@@ -526,9 +665,21 @@ def main() -> None:
     else:
         cfpb_train = cfpb_val = cfpb_test = pd.DataFrame()
 
-    combined_train = pd.concat([cfpb_train, ibm_train], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
-    combined_val = pd.concat([cfpb_val, ibm_val], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
-    combined_test = pd.concat([cfpb_test, ibm_test], ignore_index=True).sort_values(["_event_time", "case_id"]).reset_index(drop=True)
+    combined_train = (
+        pd.concat([cfpb_train, ibm_train], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
+    combined_val = (
+        pd.concat([cfpb_val, ibm_val], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
+    combined_test = (
+        pd.concat([cfpb_test, ibm_test], ignore_index=True)
+        .sort_values(["_event_time", "case_id"])
+        .reset_index(drop=True)
+    )
 
     y_combined_val = combined_val["risk_label"].astype(int).to_numpy()
     y_combined_test = combined_test["risk_label"].astype(int).to_numpy()
@@ -540,46 +691,113 @@ def main() -> None:
 
     # Combined vanilla text baseline.
     combined_text = _build_text_model(args.max_features, args.random_state)
-    combined_text.fit(_text_features(combined_train), combined_train["risk_label"].astype(int))
+    combined_text.fit(
+        _text_features(combined_train), combined_train["risk_label"].astype(int)
+    )
     combined_text_val_score = _model_score(combined_text, _text_features(combined_val))
-    combined_text_test_score = _model_score(combined_text, _text_features(combined_test))
-    combined_text_threshold = _best_threshold(y_combined_val, combined_text_val_score, args.n_thresholds)
-    row = _eval_scores(y_combined_test, combined_text_test_score, args.review_capacity, combined_text_threshold)
-    row.update({"model": "combined_text_logreg_baseline", "slice": "combined_test", "selected_threshold": combined_text_threshold})
+    combined_text_test_score = _model_score(
+        combined_text, _text_features(combined_test)
+    )
+    combined_text_threshold = _best_threshold(
+        y_combined_val, combined_text_val_score, args.n_thresholds
+    )
+    row = _eval_scores(
+        y_combined_test,
+        combined_text_test_score,
+        args.review_capacity,
+        combined_text_threshold,
+    )
+    row.update(
+        {
+            "model": "combined_text_logreg_baseline",
+            "slice": "combined_test",
+            "selected_threshold": combined_text_threshold,
+        }
+    )
     results.append(row)
     scores_for_slices["combined_text_logreg_baseline"] = combined_text_test_score
-    joblib.dump(combined_text, models_dir / f"{stamp}_combined_text_logreg_baseline.joblib")
+    joblib.dump(
+        combined_text, models_dir / f"{stamp}_combined_text_logreg_baseline.joblib"
+    )
 
     # IBM text baseline.
     ibm_text = _build_text_model(args.max_features, args.random_state)
     ibm_text.fit(_text_features(ibm_train), ibm_train["risk_label"].astype(int))
     ibm_text_val_score = _model_score(ibm_text, _text_features(ibm_val))
     ibm_text_test_score = _model_score(ibm_text, _text_features(ibm_test))
-    ibm_text_threshold = _best_threshold(y_ibm_val, ibm_text_val_score, args.n_thresholds)
-    row = _eval_scores(y_ibm_test, ibm_text_test_score, args.review_capacity, ibm_text_threshold)
-    row.update({"model": "ibm_text_logreg_baseline", "slice": "ibm_aml_only", "selected_threshold": ibm_text_threshold})
+    ibm_text_threshold = _best_threshold(
+        y_ibm_val, ibm_text_val_score, args.n_thresholds
+    )
+    row = _eval_scores(
+        y_ibm_test, ibm_text_test_score, args.review_capacity, ibm_text_threshold
+    )
+    row.update(
+        {
+            "model": "ibm_text_logreg_baseline",
+            "slice": "ibm_aml_only",
+            "selected_threshold": ibm_text_threshold,
+        }
+    )
     results.append(row)
     joblib.dump(ibm_text, models_dir / f"{stamp}_ibm_text_logreg_baseline.joblib")
 
     # IBM behavior logistic baseline.
     ibm_behavior_logreg = _build_behavior_logreg(args.random_state)
-    ibm_behavior_logreg.fit(_behavior_features(ibm_train), ibm_train["risk_label"].astype(int))
-    ibm_behavior_logreg_val_score = _model_score(ibm_behavior_logreg, _behavior_features(ibm_val))
-    ibm_behavior_logreg_test_score = _model_score(ibm_behavior_logreg, _behavior_features(ibm_test))
-    ibm_behavior_logreg_threshold = _best_threshold(y_ibm_val, ibm_behavior_logreg_val_score, args.n_thresholds)
-    row = _eval_scores(y_ibm_test, ibm_behavior_logreg_test_score, args.review_capacity, ibm_behavior_logreg_threshold)
-    row.update({"model": "ibm_behavior_logreg", "slice": "ibm_aml_only", "selected_threshold": ibm_behavior_logreg_threshold})
+    ibm_behavior_logreg.fit(
+        _behavior_features(ibm_train), ibm_train["risk_label"].astype(int)
+    )
+    ibm_behavior_logreg_val_score = _model_score(
+        ibm_behavior_logreg, _behavior_features(ibm_val)
+    )
+    ibm_behavior_logreg_test_score = _model_score(
+        ibm_behavior_logreg, _behavior_features(ibm_test)
+    )
+    ibm_behavior_logreg_threshold = _best_threshold(
+        y_ibm_val, ibm_behavior_logreg_val_score, args.n_thresholds
+    )
+    row = _eval_scores(
+        y_ibm_test,
+        ibm_behavior_logreg_test_score,
+        args.review_capacity,
+        ibm_behavior_logreg_threshold,
+    )
+    row.update(
+        {
+            "model": "ibm_behavior_logreg",
+            "slice": "ibm_aml_only",
+            "selected_threshold": ibm_behavior_logreg_threshold,
+        }
+    )
     results.append(row)
     joblib.dump(ibm_behavior_logreg, models_dir / f"{stamp}_ibm_behavior_logreg.joblib")
 
     # IBM behavior HGB.
     ibm_behavior_hgb = _build_behavior_hgb(args.random_state)
-    ibm_behavior_hgb.fit(_behavior_features(ibm_train), ibm_train["risk_label"].astype(int))
-    ibm_behavior_hgb_val_score = _model_score(ibm_behavior_hgb, _behavior_features(ibm_val))
-    ibm_behavior_hgb_test_score = _model_score(ibm_behavior_hgb, _behavior_features(ibm_test))
-    ibm_behavior_hgb_threshold = _best_threshold(y_ibm_val, ibm_behavior_hgb_val_score, args.n_thresholds)
-    row = _eval_scores(y_ibm_test, ibm_behavior_hgb_test_score, args.review_capacity, ibm_behavior_hgb_threshold)
-    row.update({"model": "ibm_behavior_hgb", "slice": "ibm_aml_only", "selected_threshold": ibm_behavior_hgb_threshold})
+    ibm_behavior_hgb.fit(
+        _behavior_features(ibm_train), ibm_train["risk_label"].astype(int)
+    )
+    ibm_behavior_hgb_val_score = _model_score(
+        ibm_behavior_hgb, _behavior_features(ibm_val)
+    )
+    ibm_behavior_hgb_test_score = _model_score(
+        ibm_behavior_hgb, _behavior_features(ibm_test)
+    )
+    ibm_behavior_hgb_threshold = _best_threshold(
+        y_ibm_val, ibm_behavior_hgb_val_score, args.n_thresholds
+    )
+    row = _eval_scores(
+        y_ibm_test,
+        ibm_behavior_hgb_test_score,
+        args.review_capacity,
+        ibm_behavior_hgb_threshold,
+    )
+    row.update(
+        {
+            "model": "ibm_behavior_hgb",
+            "slice": "ibm_aml_only",
+            "selected_threshold": ibm_behavior_hgb_threshold,
+        }
+    )
     results.append(row)
     joblib.dump(ibm_behavior_hgb, models_dir / f"{stamp}_ibm_behavior_hgb.joblib")
 
@@ -587,29 +805,81 @@ def main() -> None:
     router_test_score = np.zeros(len(combined_test), dtype=float)
     router_val_score = np.zeros(len(combined_val), dtype=float)
 
-    is_ibm_test = combined_test["source_dataset"].astype(str).str.contains("ibm|aml", case=False, regex=True, na=False).to_numpy()
-    is_ibm_val = combined_val["source_dataset"].astype(str).str.contains("ibm|aml", case=False, regex=True, na=False).to_numpy()
-    is_cfpb_test = combined_test["source_dataset"].astype(str).str.contains("cfpb", case=False, regex=True, na=False).to_numpy()
-    is_cfpb_val = combined_val["source_dataset"].astype(str).str.contains("cfpb", case=False, regex=True, na=False).to_numpy()
+    is_ibm_test = (
+        combined_test["source_dataset"]
+        .astype(str)
+        .str.contains("ibm|aml", case=False, regex=True, na=False)
+        .to_numpy()
+    )
+    is_ibm_val = (
+        combined_val["source_dataset"]
+        .astype(str)
+        .str.contains("ibm|aml", case=False, regex=True, na=False)
+        .to_numpy()
+    )
+    is_cfpb_test = (
+        combined_test["source_dataset"]
+        .astype(str)
+        .str.contains("cfpb", case=False, regex=True, na=False)
+        .to_numpy()
+    )
+    is_cfpb_val = (
+        combined_val["source_dataset"]
+        .astype(str)
+        .str.contains("cfpb", case=False, regex=True, na=False)
+        .to_numpy()
+    )
 
-    router_test_score[is_ibm_test] = _model_score(ibm_behavior_hgb, _behavior_features(combined_test.loc[is_ibm_test]))
-    router_val_score[is_ibm_val] = _model_score(ibm_behavior_hgb, _behavior_features(combined_val.loc[is_ibm_val]))
+    router_test_score[is_ibm_test] = _model_score(
+        ibm_behavior_hgb, _behavior_features(combined_test.loc[is_ibm_test])
+    )
+    router_val_score[is_ibm_val] = _model_score(
+        ibm_behavior_hgb, _behavior_features(combined_val.loc[is_ibm_val])
+    )
 
-    cfpb_model = _fit_if_two_classes(_build_text_model(args.max_features, args.random_state), cfpb_train, _text_features) if len(cfpb_train) else None
+    cfpb_model = (
+        _fit_if_two_classes(
+            _build_text_model(args.max_features, args.random_state),
+            cfpb_train,
+            _text_features,
+        )
+        if len(cfpb_train)
+        else None
+    )
     if cfpb_model is not None:
-        router_test_score[is_cfpb_test] = _model_score(cfpb_model, _text_features(combined_test.loc[is_cfpb_test]))
-        router_val_score[is_cfpb_val] = _model_score(cfpb_model, _text_features(combined_val.loc[is_cfpb_val]))
+        router_test_score[is_cfpb_test] = _model_score(
+            cfpb_model, _text_features(combined_test.loc[is_cfpb_test])
+        )
+        router_val_score[is_cfpb_val] = _model_score(
+            cfpb_model, _text_features(combined_val.loc[is_cfpb_val])
+        )
         joblib.dump(cfpb_model, models_dir / f"{stamp}_cfpb_text_model.joblib")
     else:
-        cfpb_train_rate = float(cfpb_train["risk_label"].astype(int).mean()) if len(cfpb_train) else 0.0
+        cfpb_train_rate = (
+            float(cfpb_train["risk_label"].astype(int).mean())
+            if len(cfpb_train)
+            else 0.0
+        )
         router_test_score[is_cfpb_test] = cfpb_train_rate
         router_val_score[is_cfpb_val] = cfpb_train_rate
 
-    router_threshold = _best_threshold(y_combined_val, router_val_score, args.n_thresholds)
-    row = _eval_scores(y_combined_test, router_test_score, args.review_capacity, router_threshold)
-    row.update({"model": "source_specific_router_cfpb_text_ibm_behavior_hgb", "slice": "combined_test", "selected_threshold": router_threshold})
+    router_threshold = _best_threshold(
+        y_combined_val, router_val_score, args.n_thresholds
+    )
+    row = _eval_scores(
+        y_combined_test, router_test_score, args.review_capacity, router_threshold
+    )
+    row.update(
+        {
+            "model": "source_specific_router_cfpb_text_ibm_behavior_hgb",
+            "slice": "combined_test",
+            "selected_threshold": router_threshold,
+        }
+    )
     results.append(row)
-    scores_for_slices["source_specific_router_cfpb_text_ibm_behavior_hgb"] = router_test_score
+    scores_for_slices["source_specific_router_cfpb_text_ibm_behavior_hgb"] = (
+        router_test_score
+    )
 
     # Slice evaluations for the two key combined workflows.
     slice_rows: list[dict[str, Any]] = []
@@ -619,10 +889,24 @@ def main() -> None:
         src = temp["source_dataset"].astype(str)
         slices = {
             "combined_test": temp,
-            "ibm_aml_only": temp[src.str.contains("ibm|aml", case=False, regex=True, na=False)],
-            "cfpb_only": temp[src.str.contains("cfpb", case=False, regex=True, na=False)],
-            "high_amount_slice": temp[pd.to_numeric(temp["amount"], errors="coerce").fillna(0) >= pd.to_numeric(temp["amount"], errors="coerce").fillna(0).quantile(0.80)],
-            "low_amount_slice": temp[pd.to_numeric(temp["amount"], errors="coerce").fillna(0) <= pd.to_numeric(temp["amount"], errors="coerce").fillna(0).quantile(0.50)],
+            "ibm_aml_only": temp[
+                src.str.contains("ibm|aml", case=False, regex=True, na=False)
+            ],
+            "cfpb_only": temp[
+                src.str.contains("cfpb", case=False, regex=True, na=False)
+            ],
+            "high_amount_slice": temp[
+                pd.to_numeric(temp["amount"], errors="coerce").fillna(0)
+                >= pd.to_numeric(temp["amount"], errors="coerce")
+                .fillna(0)
+                .quantile(0.80)
+            ],
+            "low_amount_slice": temp[
+                pd.to_numeric(temp["amount"], errors="coerce").fillna(0)
+                <= pd.to_numeric(temp["amount"], errors="coerce")
+                .fillna(0)
+                .quantile(0.50)
+            ],
         }
         for slice_name, frame in slices.items():
             if len(frame) == 0:
@@ -638,32 +922,66 @@ def main() -> None:
     results_df.to_csv(output_dir / "source_specific_model_results.csv", index=False)
     slice_df.to_csv(output_dir / "source_specific_slice_results.csv", index=False)
 
-    baseline_row = next(r for r in results if r["model"] == "combined_text_logreg_baseline")
-    router_row = next(r for r in results if r["model"] == "source_specific_router_cfpb_text_ibm_behavior_hgb")
+    baseline_row = next(
+        r for r in results if r["model"] == "combined_text_logreg_baseline"
+    )
+    router_row = next(
+        r
+        for r in results
+        if r["model"] == "source_specific_router_cfpb_text_ibm_behavior_hgb"
+    )
     ibm_text_row = next(r for r in results if r["model"] == "ibm_text_logreg_baseline")
     ibm_hgb_row = next(r for r in results if r["model"] == "ibm_behavior_hgb")
 
-    def pct_improve(new: float | None, old: float | None, lower_is_better: bool = False) -> float | None:
+    def pct_improve(
+        new: float | None, old: float | None, lower_is_better: bool = False
+    ) -> float | None:
         if new is None or old is None or old == 0:
             return None
         return (old - new) / old if lower_is_better else (new - old) / old
 
     claim_summary = {
         "router_vs_combined_text_baseline": {
-            "pr_auc_pct_change": pct_improve(router_row.get("pr_auc"), baseline_row.get("pr_auc")),
-            "roc_auc_pct_change": pct_improve(router_row.get("roc_auc"), baseline_row.get("roc_auc")),
+            "pr_auc_pct_change": pct_improve(
+                router_row.get("pr_auc"), baseline_row.get("pr_auc")
+            ),
+            "roc_auc_pct_change": pct_improve(
+                router_row.get("roc_auc"), baseline_row.get("roc_auc")
+            ),
             "f2_pct_change": pct_improve(router_row.get("f2"), baseline_row.get("f2")),
-            "brier_pct_reduction": pct_improve(router_row.get("brier"), baseline_row.get("brier"), lower_is_better=True),
-            "high_risk_capture_point_change": (router_row.get("high_risk_capture") or 0) - (baseline_row.get("high_risk_capture") or 0),
-            "false_auto_clear_pct_reduction": pct_improve(router_row.get("false_auto_clear"), baseline_row.get("false_auto_clear"), lower_is_better=True),
+            "brier_pct_reduction": pct_improve(
+                router_row.get("brier"), baseline_row.get("brier"), lower_is_better=True
+            ),
+            "high_risk_capture_point_change": (router_row.get("high_risk_capture") or 0)
+            - (baseline_row.get("high_risk_capture") or 0),
+            "false_auto_clear_pct_reduction": pct_improve(
+                router_row.get("false_auto_clear"),
+                baseline_row.get("false_auto_clear"),
+                lower_is_better=True,
+            ),
         },
         "ibm_behavior_hgb_vs_ibm_text_baseline": {
-            "pr_auc_pct_change": pct_improve(ibm_hgb_row.get("pr_auc"), ibm_text_row.get("pr_auc")),
-            "roc_auc_pct_change": pct_improve(ibm_hgb_row.get("roc_auc"), ibm_text_row.get("roc_auc")),
+            "pr_auc_pct_change": pct_improve(
+                ibm_hgb_row.get("pr_auc"), ibm_text_row.get("pr_auc")
+            ),
+            "roc_auc_pct_change": pct_improve(
+                ibm_hgb_row.get("roc_auc"), ibm_text_row.get("roc_auc")
+            ),
             "f2_pct_change": pct_improve(ibm_hgb_row.get("f2"), ibm_text_row.get("f2")),
-            "brier_pct_reduction": pct_improve(ibm_hgb_row.get("brier"), ibm_text_row.get("brier"), lower_is_better=True),
-            "high_risk_capture_point_change": (ibm_hgb_row.get("high_risk_capture") or 0) - (ibm_text_row.get("high_risk_capture") or 0),
-            "false_auto_clear_pct_reduction": pct_improve(ibm_hgb_row.get("false_auto_clear"), ibm_text_row.get("false_auto_clear"), lower_is_better=True),
+            "brier_pct_reduction": pct_improve(
+                ibm_hgb_row.get("brier"),
+                ibm_text_row.get("brier"),
+                lower_is_better=True,
+            ),
+            "high_risk_capture_point_change": (
+                ibm_hgb_row.get("high_risk_capture") or 0
+            )
+            - (ibm_text_row.get("high_risk_capture") or 0),
+            "false_auto_clear_pct_reduction": pct_improve(
+                ibm_hgb_row.get("false_auto_clear"),
+                ibm_text_row.get("false_auto_clear"),
+                lower_is_better=True,
+            ),
         },
     }
 
@@ -674,11 +992,17 @@ def main() -> None:
         "Do not claim CFPB source-specific performance if CFPB has one-class labels in the local sample.",
     ]
 
-    if claim_summary["router_vs_combined_text_baseline"].get("f2_pct_change") is not None:
+    if (
+        claim_summary["router_vs_combined_text_baseline"].get("f2_pct_change")
+        is not None
+    ):
         resume_safe_claims.append(
             "Built a source-specific PaymentOps risk workflow using CFPB narrative routing and IBM AML raw transaction behavior features, then compared it against a combined text-only baseline under temporal validation."
         )
-    if claim_summary["ibm_behavior_hgb_vs_ibm_text_baseline"].get("pr_auc_pct_change") is not None:
+    if (
+        claim_summary["ibm_behavior_hgb_vs_ibm_text_baseline"].get("pr_auc_pct_change")
+        is not None
+    ):
         resume_safe_claims.append(
             "Engineered IBM AML sender, receiver, pair, currency, and amount-anomaly behavior features and evaluated histogram gradient boosting against an IBM text-only baseline."
         )
@@ -703,14 +1027,34 @@ def main() -> None:
         "external_artifacts": {
             "output_dir": str(output_dir),
             "models_dir": str(models_dir),
-            "source_specific_model_results": str(output_dir / "source_specific_model_results.csv"),
-            "source_specific_slice_results": str(output_dir / "source_specific_slice_results.csv"),
+            "source_specific_model_results": str(
+                output_dir / "source_specific_model_results.csv"
+            ),
+            "source_specific_slice_results": str(
+                output_dir / "source_specific_slice_results.csv"
+            ),
         },
     }
 
-    (reports_dir / "source_specific_aml_behavior_metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (reports_dir / "source_specific_aml_behavior_metrics.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
-    cols = ["model", "slice", "rows", "positives", "pr_auc", "roc_auc", "f2", "brier", "ece", "high_risk_capture", "false_auto_clear", "capture_lift_vs_random", "selected_threshold"]
+    cols = [
+        "model",
+        "slice",
+        "rows",
+        "positives",
+        "pr_auc",
+        "roc_auc",
+        "f2",
+        "brier",
+        "ece",
+        "high_risk_capture",
+        "false_auto_clear",
+        "capture_lift_vs_random",
+        "selected_threshold",
+    ]
     md = []
     md.append("# Source-Specific AML Behavior Experiment\n")
     md.append("## Claim boundary\n")
@@ -722,7 +1066,20 @@ def main() -> None:
     md.append("## Model comparison\n")
     md.append(_write_md_table(results, cols))
     md.append("\n## Source and risk slices\n")
-    slice_cols = ["model", "slice", "rows", "positives", "positive_rate", "pr_auc", "roc_auc", "f2", "brier", "ece", "high_risk_capture", "false_auto_clear"]
+    slice_cols = [
+        "model",
+        "slice",
+        "rows",
+        "positives",
+        "positive_rate",
+        "pr_auc",
+        "roc_auc",
+        "f2",
+        "brier",
+        "ece",
+        "high_risk_capture",
+        "false_auto_clear",
+    ]
     md.append(_write_md_table(slice_rows, slice_cols))
     md.append("\n## Claim summary\n")
     md.append("```json\n" + json.dumps(claim_summary, indent=2) + "\n```\n")
@@ -736,7 +1093,9 @@ def main() -> None:
     for key, value in result["external_artifacts"].items():
         md.append(f"- {key}: `{value}`")
 
-    (reports_dir / "27_source_specific_aml_behavior_experiment.md").write_text("\n".join(md), encoding="utf-8")
+    (reports_dir / "27_source_specific_aml_behavior_experiment.md").write_text(
+        "\n".join(md), encoding="utf-8"
+    )
 
     claims_md = ["# Source-Specific AML Behavior Resume Claims\n"]
     claims_md.append("## Use only if consistent with latest metrics\n")
@@ -745,19 +1104,26 @@ def main() -> None:
     claims_md.append("\n## Do not use\n")
     for claim in claims_not_to_use:
         claims_md.append(f"- {claim}")
-    (reports_dir / "27_source_specific_aml_behavior_resume_claims.md").write_text("\n".join(claims_md), encoding="utf-8")
+    (reports_dir / "27_source_specific_aml_behavior_resume_claims.md").write_text(
+        "\n".join(claims_md), encoding="utf-8"
+    )
 
-    print(json.dumps({
-        "status": "PASS",
-        "rows": result["rows"],
-        "baseline": baseline_row,
-        "source_specific_router": router_row,
-        "ibm_text_baseline": ibm_text_row,
-        "ibm_behavior_hgb": ibm_hgb_row,
-        "claim_summary": claim_summary,
-        "report": "reports/27_source_specific_aml_behavior_experiment.md",
-        "external_output_dir": str(output_dir),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "rows": result["rows"],
+                "baseline": baseline_row,
+                "source_specific_router": router_row,
+                "ibm_text_baseline": ibm_text_row,
+                "ibm_behavior_hgb": ibm_hgb_row,
+                "claim_summary": claim_summary,
+                "report": "reports/27_source_specific_aml_behavior_experiment.md",
+                "external_output_dir": str(output_dir),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

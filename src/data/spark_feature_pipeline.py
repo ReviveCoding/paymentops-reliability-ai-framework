@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import os
-from src.utils import DATA_DIR, REPORTS_DIR, write_report
+from pathlib import Path
+
 from src.data.common_schema import load_common_cases
+from src.utils import DATA_DIR, REPORTS_DIR, write_report
 
 
 def run_spark_or_pandas_pipeline() -> str:
@@ -17,7 +18,12 @@ def run_spark_or_pandas_pipeline() -> str:
     if os.environ.get("PAYMENTOPS_USE_PYSPARK", "0") == "1":
         try:
             from pyspark.sql import SparkSession
-            spark = SparkSession.builder.master("local[1]").appName("paymentops_feature_pipeline").getOrCreate()
+
+            spark = (
+                SparkSession.builder.master("local[1]")
+                .appName("paymentops_feature_pipeline")
+                .getOrCreate()
+            )
             sdf = spark.createDataFrame(df)
             sdf = sdf.withColumnRenamed("text", "case_text")
             pdf = sdf.toPandas()
@@ -27,8 +33,12 @@ def run_spark_or_pandas_pipeline() -> str:
         except Exception:
             engine = "pandas_fallback_after_pyspark_attempt"
     df["text_length"] = df["text"].fillna("").str.len()
-    df["is_payment_case"] = (df["case_type"].str.contains("payment|fraud", case=False)).astype(int)
-    df["amount_log"] = (df["amount"].astype(float) + 1.0).map(lambda x: __import__('math').log(x))
+    df["is_payment_case"] = (
+        df["case_type"].str.contains("payment|fraud", case=False)
+    ).astype(int)
+    df["amount_log"] = (df["amount"].astype(float) + 1.0).map(
+        lambda x: __import__("math").log(x)
+    )
     df.to_csv(out, index=False)
     body = f"""
 - Engine used: `{engine}`
@@ -38,7 +48,11 @@ def run_spark_or_pandas_pipeline() -> str:
 
 This pipeline is intentionally runnable without a Spark installation. By default it uses a deterministic pandas fallback for CI stability. Set `PAYMENTOPS_USE_PYSPARK=1` to exercise the local Spark DataFrame path when PySpark is installed.
 """
-    write_report(REPORTS_DIR / "pyspark_feature_pipeline_log.md", "PySpark-Compatible Feature Pipeline Log", body)
+    write_report(
+        REPORTS_DIR / "pyspark_feature_pipeline_log.md",
+        "PySpark-Compatible Feature Pipeline Log",
+        body,
+    )
     return engine
 
 

@@ -1,15 +1,40 @@
 from __future__ import annotations
 
 import json
+
 from src.utils import REPORTS_DIR, write_report
 
 
 def write_validation_packet() -> None:
     metrics_path = REPORTS_DIR / "ablation_metrics.json"
-    metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
-    robustness = json.loads((REPORTS_DIR / "robustness_metrics.json").read_text(encoding="utf-8")) if (REPORTS_DIR / "robustness_metrics.json").exists() else {}
-    feature_store = json.loads((REPORTS_DIR / "feature_store_validation.json").read_text(encoding="utf-8")) if (REPORTS_DIR / "feature_store_validation.json").exists() else {}
-    security = json.loads((REPORTS_DIR / "security_guardrail_metrics.json").read_text(encoding="utf-8")) if (REPORTS_DIR / "security_guardrail_metrics.json").exists() else {"summary": {}}
+    metrics = (
+        json.loads(metrics_path.read_text(encoding="utf-8"))
+        if metrics_path.exists()
+        else {}
+    )
+    robustness = (
+        json.loads(
+            (REPORTS_DIR / "robustness_metrics.json").read_text(encoding="utf-8")
+        )
+        if (REPORTS_DIR / "robustness_metrics.json").exists()
+        else {}
+    )
+    feature_store = (
+        json.loads(
+            (REPORTS_DIR / "feature_store_validation.json").read_text(encoding="utf-8")
+        )
+        if (REPORTS_DIR / "feature_store_validation.json").exists()
+        else {}
+    )
+    security = (
+        json.loads(
+            (REPORTS_DIR / "security_guardrail_metrics.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if (REPORTS_DIR / "security_guardrail_metrics.json").exists()
+        else {"summary": {}}
+    )
     body = f"""
 ## Purpose
 
@@ -56,7 +81,9 @@ Document validation evidence for the local PaymentOps Reliability AI Framework.
 - AWS/SageMaker readiness pack, model registry manifests, feature-store-style schema governance, and Transformer fine-tuning scaffold are not evidence of actual cloud execution or fine-tuning.
 - Security guardrail tests are local synthetic smoke tests, not a formal penetration test or privacy certification.
 """
-    write_report(REPORTS_DIR / "06_model_validation_packet.md", "Model Validation Packet", body)
+    write_report(
+        REPORTS_DIR / "06_model_validation_packet.md", "Model Validation Packet", body
+    )
 
 
 if __name__ == "__main__":

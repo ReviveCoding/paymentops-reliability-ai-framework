@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+
 import pandas as pd
-from src.utils import DATA_DIR, REPORTS_DIR, write_report, write_json
-from src.data.common_schema import load_common_cases
+
 from src.baselines.vanilla_issue_router import train_issue_router
 from src.baselines.vanilla_risk_model import train_vanilla_risk_model
-from src.reliability.rule_prior_residual import train_residual_corrected_model
-from src.reliability.calibration import calibration_summary, temperature_scale
+from src.data.common_schema import load_common_cases
 from src.rag.evaluate_rag import evaluate_rag
+from src.reliability.calibration import calibration_summary, temperature_scale
 from src.reliability.policy_optimizer import write_policy_frontier_report
+from src.reliability.rule_prior_residual import train_residual_corrected_model
+from src.utils import DATA_DIR, REPORTS_DIR, write_json, write_report
 
 
 def _metric_row(name: str, metrics: dict) -> str:
@@ -30,10 +32,16 @@ def run_ablation() -> dict:
     scaled_cal = calibration_summary(enhanced["y_test"], scaled_prob)
 
     result = {
-        "issue_router": {"macro_f1": issue_result["macro_f1"], "weighted_f1": issue_result["weighted_f1"]},
+        "issue_router": {
+            "macro_f1": issue_result["macro_f1"],
+            "weighted_f1": issue_result["weighted_f1"],
+        },
         "vanilla_risk": vanilla["metrics"],
         "enhanced_risk": enhanced["metrics"],
-        "operating_policy": {"constraint_status": enhanced["policy"]["constraint_status"], "selected_policy": enhanced["policy"]["selected_policy"]},
+        "operating_policy": {
+            "constraint_status": enhanced["policy"]["constraint_status"],
+            "selected_policy": enhanced["policy"]["selected_policy"],
+        },
         "scaled_calibration": scaled_cal,
         "rag": rag_metrics,
     }
@@ -48,15 +56,15 @@ This report compares vanilla ML/RAG baselines against reliability-enhanced modul
 
 | Metric | Value |
 |---|---:|
-| Macro-F1 | {issue_result['macro_f1']:.3f} |
-| Weighted-F1 | {issue_result['weighted_f1']:.3f} |
+| Macro-F1 | {issue_result["macro_f1"]:.3f} |
+| Weighted-F1 | {issue_result["weighted_f1"]:.3f} |
 
 ## Risk model ablation
 
 | Version | PR-AUC | F2 | High-risk capture | False auto-clear | Brier | ECE |
 |---|---:|---:|---:|---:|---:|---:|
-{_metric_row('V0 Vanilla risk model', vanilla['metrics'])}
-{_metric_row('V3 Rule-prior residual + CHT', enhanced['metrics'])}
+{_metric_row("V0 Vanilla risk model", vanilla["metrics"])}
+{_metric_row("V3 Rule-prior residual + CHT", enhanced["metrics"])}
 
 ## Calibration note
 
@@ -64,16 +72,16 @@ Temperature-scaled enhanced score:
 
 | Metric | Value |
 |---|---:|
-| Brier | {scaled_cal['brier']:.3f} |
-| ECE | {scaled_cal['ece']:.3f} |
+| Brier | {scaled_cal["brier"]:.3f} |
+| ECE | {scaled_cal["ece"]:.3f} |
 
 ## RAG/evidence ablation
 
 | Metric | Vanilla BM25 Top-1 | Evidence Coverage + ABC Correction |
 |---|---:|---:|
-| Evidence-slot Recall | {rag_metrics['baseline_evidence_slot_recall']:.3f} | {rag_metrics['enhanced_evidence_slot_recall']:.3f} |
-| Evidence-slot Precision | {rag_metrics['baseline_evidence_slot_precision']:.3f} | {rag_metrics['enhanced_evidence_slot_precision']:.3f} |
-| Evidence-slot F1 | {rag_metrics['baseline_evidence_slot_f1']:.3f} | {rag_metrics['enhanced_evidence_slot_f1']:.3f} |
+| Evidence-slot Recall | {rag_metrics["baseline_evidence_slot_recall"]:.3f} | {rag_metrics["enhanced_evidence_slot_recall"]:.3f} |
+| Evidence-slot Precision | {rag_metrics["baseline_evidence_slot_precision"]:.3f} | {rag_metrics["enhanced_evidence_slot_precision"]:.3f} |
+| Evidence-slot F1 | {rag_metrics["baseline_evidence_slot_f1"]:.3f} | {rag_metrics["enhanced_evidence_slot_f1"]:.3f} |
 
 ## Interpretation
 
@@ -83,7 +91,9 @@ Temperature-scaled enhanced score:
 - Evidence coverage expansion improves missing-evidence recovery, while ABC correction removes unsupported or duplicated evidence.
 """
     write_report(REPORTS_DIR / "02_baseline_results.md", "Baseline Results", body)
-    write_report(REPORTS_DIR / "03_reliability_ablation.md", "Reliability Ablation Results", body)
+    write_report(
+        REPORTS_DIR / "03_reliability_ablation.md", "Reliability Ablation Results", body
+    )
     return result
 
 

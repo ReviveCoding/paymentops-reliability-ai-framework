@@ -1,9 +1,9 @@
-from src.scripts.run_data import main as run_data
 from src.modelops.data_contract_validator import run_data_contract_validation
+from src.modelops.repository_audit import run_repository_audit
 from src.monitoring.drift_backtest import run_drift_backtest
 from src.observability.telemetry_eval import run_telemetry_eval
+from src.scripts.run_data import main as run_data
 from src.security.red_team_eval import run_red_team_eval
-from src.modelops.repository_audit import run_repository_audit
 
 
 def test_data_contract_validation_passes():

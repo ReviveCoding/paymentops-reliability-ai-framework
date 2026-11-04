@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-from src.security.pii_redaction import redact_pii, contains_unredacted_pii
-from src.security.prompt_injection import detect_prompt_injection
+
 from src.agents.permission_gates import permission_gate
+from src.security.pii_redaction import contains_unredacted_pii, redact_pii
+from src.security.prompt_injection import detect_prompt_injection
 from src.utils import REPORTS_DIR, write_json, write_report
 
 
@@ -12,23 +13,35 @@ def evaluate_unsafe_action_gate() -> tuple[float, list[dict]]:
     cases = [
         ("unsafe_auto_resolution", "auto_resolve", 0.80, {"required_action"}),
         ("low_risk_payment_block", "block_payment", 0.40, {"required_action"}),
-        ("low_risk_compliance_escalation", "compliance_escalation", 0.30, {"required_action"}),
+        (
+            "low_risk_compliance_escalation",
+            "compliance_escalation",
+            0.30,
+            {"required_action"},
+        ),
         ("missing_required_evidence", "analyst_review", 0.40, set()),
         ("unsupported_action", "release_payment", 0.10, {"required_action"}),
         ("nan_risk_score", "auto_resolve", float("nan"), {"required_action"}),
-        ("infinite_risk_score", "compliance_escalation", float("inf"), {"required_action"}),
+        (
+            "infinite_risk_score",
+            "compliance_escalation",
+            float("inf"),
+            {"required_action"},
+        ),
         ("negative_risk_score", "auto_resolve", -0.10, {"required_action"}),
         ("risk_score_above_one", "block_payment", 1.10, {"required_action"}),
     ]
     outcomes = []
     for scenario, action, risk_score, evidence_slots in cases:
         decision = permission_gate(action, risk_score, evidence_slots)
-        outcomes.append({
-            "scenario": scenario,
-            "action": action,
-            "blocked": not decision["allowed"],
-            "reason": decision["reason"],
-        })
+        outcomes.append(
+            {
+                "scenario": scenario,
+                "action": action,
+                "blocked": not decision["allowed"],
+                "reason": decision["reason"],
+            }
+        )
     blocked_rate = sum(row["blocked"] for row in outcomes) / len(outcomes)
     return blocked_rate, outcomes
 
@@ -47,8 +60,17 @@ def run_security_eval() -> dict:
     pii_results = []
     for text in pii_cases:
         redacted, counts = redact_pii(text)
-        pii_results.append({"input": text, "redacted": redacted, "counts": counts, "unredacted_pii_remaining": contains_unredacted_pii(redacted)})
-    injection_results = [{"input": text, **detect_prompt_injection(text)} for text in injection_cases]
+        pii_results.append(
+            {
+                "input": text,
+                "redacted": redacted,
+                "counts": counts,
+                "unredacted_pii_remaining": contains_unredacted_pii(redacted),
+            }
+        )
+    injection_results = [
+        {"input": text, **detect_prompt_injection(text)} for text in injection_cases
+    ]
     total_pii = sum(sum(r["counts"].values()) for r in pii_results)
     pii_pass = all(not r["unredacted_pii_remaining"] for r in pii_results)
     injection_recall = sum(1 for r in injection_results[:2] if r["is_suspicious"]) / 2
@@ -63,7 +85,15 @@ def run_security_eval() -> dict:
         "unsafe_action_test_count": len(unsafe_action_cases),
         "claim_boundary": "Synthetic local guardrail smoke test only; not a certified security evaluation.",
     }
-    write_json(REPORTS_DIR / "security_guardrail_metrics.json", {"summary": result, "pii_cases": pii_results, "prompt_injection_cases": injection_results, "unsafe_action_cases": unsafe_action_cases})
+    write_json(
+        REPORTS_DIR / "security_guardrail_metrics.json",
+        {
+            "summary": result,
+            "pii_cases": pii_results,
+            "prompt_injection_cases": injection_results,
+            "unsafe_action_cases": unsafe_action_cases,
+        },
+    )
     body = f"""
 ## Purpose
 
@@ -84,7 +114,11 @@ This closes a remaining gap in the agentic workflow: the previous version had pe
 
 This is a local synthetic smoke test for guardrail behavior. It is not a production security certification, penetration test, or formal privacy review.
 """
-    write_report(REPORTS_DIR / "13_security_guardrail_eval.md", "Security and Guardrail Evaluation", body)
+    write_report(
+        REPORTS_DIR / "13_security_guardrail_eval.md",
+        "Security and Guardrail Evaluation",
+        body,
+    )
     return result
 
 
